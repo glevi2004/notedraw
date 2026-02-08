@@ -32,7 +32,7 @@ interface FileNode {
 
 const fileTree: FileNode[] = [
   {
-    name: 'memgrove',
+    name: 'project',
     type: 'folder',
     isOpen: true,
     children: [
@@ -78,7 +78,7 @@ export default function CursorIDE() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [activeTab, setActiveTab] = useState('main.ts');
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['memgrove', 'src', 'components']));
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['project', 'src', 'components']));
   const [chatInput, setChatInput] = useState('');
 
   const toggleFolder = (name: string) => {
@@ -142,7 +142,7 @@ export default function CursorIDE() {
             <div className="w-3 h-3 rounded-full bg-yellow-500" />
             <div className="w-3 h-3 rounded-full bg-green-500" />
           </div>
-          <span className="ml-2">main.ts — memgrove</span>
+          <span className="ml-2">main.ts — project</span>
         </div>
         <div className="flex items-center gap-3">
           <Bot className="w-3.5 h-3.5" />

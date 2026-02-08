@@ -70,8 +70,12 @@ export default clerkMiddleware((auth, req: NextRequest) => {
 
   // Handle app subdomain (app.notedraw.com in prod, app.localhost in dev)
   if (isAppDomain(host)) {
-    // Allow all app routes (/dashboard, /workspace, /app/*)
-    // Clerk middleware will handle authentication
+    // Rewrite root path to dashboard
+    if (pathname === '/') {
+      return NextResponse.rewrite(new URL('/dashboard', req.url))
+    }
+    
+    // Allow all app routes - Clerk middleware will handle authentication
     return NextResponse.next()
   }
 
@@ -81,12 +85,14 @@ export default clerkMiddleware((auth, req: NextRequest) => {
     if (
       pathname === '/dashboard' || pathname.startsWith('/dashboard/') ||
       pathname === '/workspace' || pathname.startsWith('/workspace/') ||
-      pathname.startsWith('/app/')
+      pathname.startsWith('/app/') ||
+      pathname === '/sign-in' || pathname.startsWith('/sign-in/')
     ) {
       return NextResponse.redirect(new URL(getRedirectUrl(true, pathname, host)))
     }
     
-    // Allow all marketing routes (/, /docs, /blog, etc.)
+    // Root path and marketing routes will serve (landing)/page.tsx
+    // Allow all marketing routes (/, /blog, etc.)
     return NextResponse.next()
   }
 

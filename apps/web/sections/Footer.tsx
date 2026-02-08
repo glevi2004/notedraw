@@ -29,7 +29,6 @@ export default function Footer() {
       links: [
         { label: 'Download', href: '#download' },
         { label: 'Changelog', href: '#changelog' },
-        { label: 'Documentation', href: '#docs', external: true },
         { label: 'Learn', href: '#learn', external: true },
         { label: 'Forum', href: '#forum', external: true },
         { label: 'Status', href: '#status', external: true },

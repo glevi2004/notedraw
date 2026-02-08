@@ -4,8 +4,8 @@
 
 @layer base {
   :root {
-    /* Cursor Light Mode Colors */
-    --background: 40 20% 96%;
+    /* Light Mode Colors */
+    --background: 0 0% 100%;
     --foreground: 0 0% 10%;
     --card: 0 0% 100%;
     --card-foreground: 0 0% 10%;
@@ -13,18 +13,28 @@
     --popover-foreground: 0 0% 10%;
     --primary: 0 0% 10%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 40 15% 92%;
+    --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 10%;
-    --muted: 40 10% 90%;
+    --muted: 0 0% 96%;
     --muted-foreground: 0 0% 45%;
-    --accent: 40 15% 92%;
+    --accent: 0 0% 96%;
     --accent-foreground: 0 0% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 40 10% 85%;
-    --input: 40 10% 85%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
     --ring: 0 0% 10%;
     --radius: 0.625rem;
+    
+    /* Sidebar Colors */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 20%;
+    --sidebar-primary: 0 0% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 0 0% 94%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 0 0% 10%;
     
     /* Editor Colors */
     --editor-bg: 220 15% 12%;
@@ -43,33 +53,43 @@
   }
 
   .dark {
-    /* Cursor Dark Mode Colors */
-    --background: 220 15% 8%;
-    --foreground: 0 0% 95%;
-    --card: 220 15% 10%;
-    --card-foreground: 0 0% 95%;
-    --popover: 220 15% 10%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 0 0% 95%;
-    --primary-foreground: 220 15% 8%;
-    --secondary: 220 10% 18%;
-    --secondary-foreground: 0 0% 95%;
-    --muted: 220 10% 18%;
+    /* Dark Mode - Pure Black Theme (like Replit) */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 12%;
     --muted-foreground: 0 0% 60%;
-    --accent: 220 10% 18%;
-    --accent-foreground: 0 0% 95%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 10% 20%;
-    --input: 220 10% 20%;
-    --ring: 0 0% 95%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 100%;
     
-    /* Editor Colors (same in dark mode) */
-    --editor-bg: 220 15% 10%;
+    /* Sidebar Colors - Dark theme */
+    --sidebar-background: 0 0% 6%;
+    --sidebar-foreground: 0 0% 70%;
+    --sidebar-primary: 160 60% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 12%;
+    --sidebar-ring: 0 0% 100%;
+    
+    /* Editor Colors */
+    --editor-bg: 0 0% 5%;
     --editor-fg: 0 0% 90%;
-    --editor-sidebar: 220 15% 13%;
-    --editor-border: 220 10% 18%;
-    --editor-accent: 210 100% 55%;
+    --editor-sidebar: 0 0% 8%;
+    --editor-border: 0 0% 15%;
+    --editor-accent: 160 60% 45%;
   }
 }
 
@@ -103,6 +123,15 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Dark mode specific scrollbar */
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
 }
 
 /* Code editor styles */
@@ -168,8 +197,6 @@
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-
-/* App-specific styles */
 
 /* Smooth transitions for theme changes */
 * {
@@ -361,4 +388,34 @@
 
 .draggable-window:active {
   transition: none;
+}
+
+/* Dashboard specific styles */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Project card hover effect */
+.project-card {
+  transition: all 0.2s ease;
+}
+
+.project-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Sidebar item hover */
+.sidebar-item {
+  transition: all 0.15s ease;
+}
+
+.sidebar-item:hover {
+  background-color: hsl(var(--sidebar-accent));
+}
+
+/* Search input focus */
+.search-input:focus {
+  box-shadow: 0 0 0 1px hsl(var(--border));
 }

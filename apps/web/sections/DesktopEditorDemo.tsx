@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react';
 import Image from 'next/image';
 import DraggableWindow from '@/components/DraggableWindow';
-import MemgroveDashboard from '@/components/graph/MemgroveDashboard';
 import CursorIDE from '@/components/apps/CursorIDE';
 import GeminiApp from '@/components/apps/GeminiApp';
 import ChatGPTApp from '@/components/apps/ChatGPTApp';
@@ -15,19 +14,12 @@ import { useTheme } from '@/context/ThemeContext';
 interface Window {
   id: string;
   title: string;
-  type: 'memgrove' | 'cursor-ide' | 'gemini' | 'chatgpt' | 'claude' | 'notion';
+  type: 'cursor-ide' | 'gemini' | 'chatgpt' | 'claude' | 'notion';
   defaultPosition: { x: number; y: number };
   defaultSize: { width: number; height: number };
 }
 
 const allWindows: Window[] = [
-  {
-    id: 'memgrove',
-    title: 'Memgrove Dashboard',
-    type: 'memgrove',
-    defaultPosition: { x: 760, y: 40 },
-    defaultSize: { width: 500, height: 500 }
-  },
   {
     id: 'cursor-ide',
     title: 'Cursor - AI Code Editor',
@@ -68,13 +60,6 @@ const allWindows: Window[] = [
 // Default visible windows on load
 const initialWindows: Window[] = [
   {
-    id: 'memgrove',
-    title: 'Memgrove Dashboard',
-    type: 'memgrove',
-    defaultPosition: { x: 760, y: 40 },
-    defaultSize: { width: 500, height: 500 }
-  },
-  {
     id: 'cursor-ide',
     title: 'Cursor - AI Code Editor',
     type: 'cursor-ide',
@@ -88,8 +73,7 @@ export default function DesktopEditorDemo() {
   const isDark = theme === 'dark';
   const [windows, setWindows] = useState<Window[]>(initialWindows);
   const [zIndices, setZIndices] = useState<Record<string, number>>({
-    memgrove: 1,
-    'cursor-ide': 2
+    'cursor-ide': 1
   });
   const [highestZ, setHighestZ] = useState(1);
 
@@ -138,8 +122,6 @@ export default function DesktopEditorDemo() {
 
   const renderWindowContent = (type: string) => {
     switch (type) {
-      case 'memgrove':
-        return <MemgroveDashboard />;
       case 'cursor-ide':
         return <CursorIDE />;
       case 'gemini':
@@ -192,27 +174,6 @@ export default function DesktopEditorDemo() {
 
           {/* Desktop Icons - Top Left Column */}
           <div className="absolute top-4 left-4 flex flex-col gap-3 z-0">
-            {/* Memgrove */}
-            <div 
-              className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-black/5 cursor-pointer transition-colors"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                openWindow('memgrove');
-              }}
-            >
-              <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-lg p-1.5 overflow-visible">
-                <Image
-                  src="/logo-black.png"
-                  alt="Memgrove"
-                  width={36}
-                  height={36}
-                  className="object-contain"
-                />
-              </div>
-              <span className="text-[10px] text-gray-800 font-medium drop-shadow-sm">Memgrove</span>
-            </div>
-
             {/* Cursor IDE */}
             <div 
               className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-black/5 cursor-pointer transition-colors"
@@ -356,10 +317,7 @@ export default function DesktopEditorDemo() {
             <span className="font-medium">AI Apps at Your Fingertips</span>
           </div>
           <p className="text-sm text-muted-foreground mb-1">
-            Access Cursor, Gemini, ChatGPT, Claude, and Notion directly from your Memgrove desktop
-          </p>
-          <p className="text-xs text-muted-foreground/70">
-            All conversations are saved to your knowledge graph for future reference.
+            Access Cursor, Gemini, ChatGPT, Claude, and Notion directly from your Notedraw desktop
           </p>
           <a 
             href="#features" 

@@ -40,7 +40,6 @@ export default function Navigation() {
 
   const resourceLinks = [
     { label: 'Changelog', href: '#changelog' },
-    { label: 'Documentation', href: '/docs' },
     { label: 'Community', href: '#community' },
     { label: 'Blog', href: '#blog' },
   ];

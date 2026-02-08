@@ -13,19 +13,15 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    // Check localStorage first
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('cursor-theme') as Theme;
-      if (stored) return stored;
-      
-      // Check system preference
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        return 'dark';
-      }
+  const [theme, setThemeState] = useState<Theme>('dark');
+
+  useEffect(() => {
+    // Check localStorage after mount
+    const stored = localStorage.getItem('cursor-theme') as Theme;
+    if (stored) {
+      setThemeState(stored);
     }
-    return 'light';
-  });
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;

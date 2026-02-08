@@ -7,7 +7,7 @@ import Changelog from '@/sections/Changelog';
 import CTA from '@/sections/CTA';
 import Footer from '@/sections/Footer';
 
-export default function HomePage() {
+export default function LandingPage() {
   return (
     <>
       <Navigation />
