@@ -54,34 +54,35 @@
 
   .dark {
     /* Dark Mode - Pure Black Theme (like Replit) */
+    /* Colors matched to hardcoded hex values: #0a0a0a=4%, #141414=8%, #1a1a1a=10%, #222=13%, #252525=15%, #333=20% */
     --background: 0 0% 0%;
     --foreground: 0 0% 100%;
-    --card: 0 0% 5%;
+    --card: 0 0% 4%;
     --card-foreground: 0 0% 100%;
     --popover: 0 0% 8%;
     --popover-foreground: 0 0% 100%;
     --primary: 0 0% 100%;
     --primary-foreground: 0 0% 0%;
-    --secondary: 0 0% 12%;
+    --secondary: 0 0% 8%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 12%;
+    --muted: 0 0% 8%;
     --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 15%;
+    --accent: 0 0% 10%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 15%;
-    --input: 0 0% 15%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
     --ring: 0 0% 100%;
     
     /* Sidebar Colors - Dark theme */
-    --sidebar-background: 0 0% 6%;
+    --sidebar-background: 0 0% 4%;
     --sidebar-foreground: 0 0% 70%;
     --sidebar-primary: 160 60% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent: 0 0% 8%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 12%;
+    --sidebar-border: 0 0% 8%;
     --sidebar-ring: 0 0% 100%;
     
     /* Editor Colors */

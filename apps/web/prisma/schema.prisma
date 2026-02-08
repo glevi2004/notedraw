@@ -20,10 +20,71 @@ model User {
   lastName      String?
   imageUrl      String?
   
-  // Add your app-specific fields here
+  // Relations
+  ownedFolders  Folder[]  @relation("FolderOwner")
+  folderMembers FolderMember[]
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([clerkId])
   @@index([email])
+}
+
+// Folder model - workspaces are top-level folders with parentFolderId = null
+model Folder {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  ownerId       String
+  parentFolderId String?
+  order         Int       @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  owner         User      @relation("FolderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  parentFolder  Folder?   @relation("FolderHierarchy", fields: [parentFolderId], references: [id], onDelete: Cascade)
+  subfolders    Folder[]  @relation("FolderHierarchy")
+  scenes        Scene[]
+  members       FolderMember[]
+
+  @@index([ownerId])
+  @@index([parentFolderId])
+}
+
+// FolderMember model - for sharing folders/workspaces
+model FolderMember {
+  id        String   @id @default(cuid())
+  folderId  String
+  userId    String
+  role      String   // OWNER, EDITOR, VIEWER
+  createdAt DateTime @default(now())
+
+  // Relations
+  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, userId])
+  @@index([folderId])
+  @@index([userId])
+}
+
+// Scene model
+model Scene {
+  id            String    @id @default(cuid())
+  title         String
+  folderId      String?
+  content       Json?
+  lastEditedBy  String?   // Clerk user ID
+  lastEditedAt DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  folder        Folder?    @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([folderId])
 }

@@ -54,23 +54,23 @@ export function SimpleInputModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/70"
+        className="absolute inset-0 bg-black/50 dark:bg-black/70"
         onClick={() => onOpenChange(false)}
       />
 
       {/* Modal */}
       <div
         className={cn(
-          'relative w-[320px] bg-[#1a1a1a] rounded-xl shadow-2xl overflow-hidden',
+          'relative w-[320px] bg-popover rounded-xl shadow-2xl overflow-hidden',
           className
         )}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3">
-          <h2 className="text-[15px] font-medium text-white">{title}</h2>
+          <h2 className="text-[15px] font-medium text-popover-foreground">{title}</h2>
           <button
             onClick={() => onOpenChange(false)}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-muted-foreground hover:text-popover-foreground transition-colors"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -87,12 +87,12 @@ export function SimpleInputModal({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="w-full h-10 px-3 bg-[#0f0f0f] border border-[#333] rounded-lg text-white text-[15px] placeholder:text-gray-500 focus:outline-none focus:border-[#555] transition-colors"
+            className="w-full h-10 px-3 bg-card border border-input rounded-lg text-foreground text-[15px] placeholder:text-muted-foreground focus:outline-none focus:border-ring transition-colors"
           />
 
           {/* Helper Text */}
           {helperText && (
-            <p className="text-[13px] text-gray-400 leading-snug">
+            <p className="text-[13px] text-muted-foreground leading-snug">
               {helperText}
             </p>
           )}
@@ -100,7 +100,7 @@ export function SimpleInputModal({
           {/* Submit Button */}
           <button
             onClick={onSubmit}
-            className="w-full h-9 bg-white text-black hover:bg-gray-100 font-medium text-[14px] rounded-lg transition-colors"
+            className="w-full h-9 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-[14px] rounded-lg transition-colors"
           >
             {submitLabel}
           </button>
