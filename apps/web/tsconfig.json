@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2015",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -23,9 +19,17 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],
+      "@excalidraw/excalidraw": ["../../packages/excalidraw"],
+      "@excalidraw/excalidraw/*": ["../../packages/excalidraw/*"],
+      "@excalidraw/element": ["../../packages/element/src"],
+      "@excalidraw/element/*": ["../../packages/element/src/*"],
+      "@excalidraw/common": ["../../packages/common/src"],
+      "@excalidraw/common/*": ["../../packages/common/src/*"],
+      "@excalidraw/math": ["../../packages/math/src"],
+      "@excalidraw/math/*": ["../../packages/math/src/*"],
+      "@excalidraw/utils": ["../../packages/utils/src"],
+      "@excalidraw/utils/*": ["../../packages/utils/src/*"]
     }
   },
   "include": [
@@ -35,7 +39,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

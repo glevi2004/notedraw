@@ -19,8 +19,17 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@blocknote/core": "^0.46.2",
+    "@blocknote/mantine": "^0.46.2",
+    "@blocknote/react": "^0.46.2",
     "@clerk/nextjs": "^6.37.3",
+    "@excalidraw/excalidraw": "workspace:*",
+    "@excalidraw/element": "workspace:*",
+    "@excalidraw/common": "workspace:*",
+    "@excalidraw/math": "workspace:*",
+    "@excalidraw/utils": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
+    "@prisma/client": "^6.6.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -66,12 +75,10 @@
     "react-resizable-panels": "^4.2.2",
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
+    "svix": "^1.15.0",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2",
-    "zod": "^4.3.5",
-    "@excalidraw/excalidraw": "0.18.0",
-    "@prisma/client": "^6.6.0",
-    "svix": "^1.15.0"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
@@ -83,9 +90,9 @@
     "postcss": "^8.5.6",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
+    "prisma": "^6.6.0",
     "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "~5.9.3",
-    "prisma": "^6.6.0"
+    "typescript": "~5.9.3"
   }
 }

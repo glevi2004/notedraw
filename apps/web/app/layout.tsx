@@ -1,11 +1,12 @@
-import './globals.css';
-import type { Metadata } from 'next';
-import { ClerkProvider } from '@clerk/nextjs';
-import { ThemeProvider } from '@/context/ThemeContext';
+import "./globals.css";
+import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 export const metadata: Metadata = {
-  title: 'Notedraw - Unified Drawing and Notes Workspace',
-  description: 'A unified workspace combining Excalidraw-style drawing capabilities with Notion-like notes functionality.',
+  title: "Notedraw - Unified Drawing and Notes Workspace",
+  description:
+    "A unified workspace combining Excalidraw-style drawing capabilities with Notion-like notes functionality.",
 };
 
 // Script to prevent flash of incorrect theme (FOUC)
@@ -39,16 +40,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
+    >
       <html lang="en" suppressHydrationWarning>
         <head>
           <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-          <script dangerouslySetInnerHTML={{ __html: 'window.EXCALIDRAW_ASSET_PATH = "/fonts/";' }} />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: 'window.EXCALIDRAW_ASSET_PATH = "/fonts/";',
+            }}
+          />
         </head>
         <body>
-          <ThemeProvider>
-            {children}
-          </ThemeProvider>
+          <ThemeProvider>{children}</ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

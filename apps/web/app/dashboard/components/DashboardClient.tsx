@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useUser, useClerk } from '@clerk/nextjs';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { DashboardSidebar } from './DashboardSidebar';
+import { useSidebar } from './SidebarContext';
 import { Search, Users, Plus, LayoutGrid, MoreHorizontal, PanelLeft, PencilLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,7 @@ export function DashboardClient() {
   const { user } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { sidebarCollapsed, setSidebarCollapsed } = useSidebar();
   const [searchQuery, setSearchQuery] = useState('');
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('New Folder');
@@ -175,69 +176,67 @@ export function DashboardClient() {
   };
 
   return (
-    <DashboardSidebar>
-      {({ sidebarCollapsed, setSidebarCollapsed }) => (
-        <>
-          {/* Header */}
-          <header className="h-14 flex items-center justify-between px-6 border-b border-border">
-            {/* Left side with sidebar toggle and title */}
-            <div className="flex items-center gap-3 min-w-[120px]">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="text-muted-foreground hover:text-foreground -ml-2"
-              >
-                <PanelLeft className="w-5 h-5" />
-              </Button>
-              <h1 className="text-base font-medium text-foreground">
-                {activeView}
-              </h1>
-            </div>
+    <>
+      {/* Header */}
+      <header className="h-14 flex items-center justify-between px-6 border-b border-border">
+        {/* Left side with sidebar toggle and title */}
+        <div className="flex items-center gap-3 min-w-[120px]">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="text-muted-foreground hover:text-foreground -ml-2"
+          >
+            <PanelLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="text-base font-medium text-foreground">
+            {activeView}
+          </h1>
+        </div>
 
-            {/* Search Bar */}
-            <div className="flex-1 max-w-xl mx-8">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-10 pr-4 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-input transition-colors"
-                />
-              </div>
-            </div>
+        {/* Search Bar */}
+        <div className="flex-1 max-w-xl mx-8">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-9 pl-10 pr-4 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-input transition-colors"
+            />
+          </div>
+        </div>
 
-            {/* Right Actions */}
-            <div className="flex items-center gap-3 min-w-[280px] justify-end">
-              <button className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <Users className="w-4 h-4" />
-                <span>1</span>
-              </button>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="text-sm text-muted-foreground hover:text-foreground"
-              >
-                Invite
-              </Button>
-              <Button 
-                size="sm"
-                onClick={() => {
-                  setNewSceneDialogOpen(true);
-                }}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium px-4"
-                disabled={scenesLoading}
-              >
-                <PencilLine className="w-4 h-4 mr-2" />
-                Start drawing
-              </Button>
-            </div>
-          </header>
+        {/* Right Actions */}
+        <div className="flex items-center gap-3 min-w-[280px] justify-end">
+          <button className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Users className="w-4 h-4" />
+            <span>1</span>
+          </button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Invite
+          </Button>
+          <Button 
+            size="sm"
+            onClick={() => {
+              setNewSceneDialogOpen(true);
+            }}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium px-4"
+            disabled={scenesLoading}
+          >
+            <PencilLine className="w-4 h-4 mr-2" />
+            Start drawing
+          </Button>
+        </div>
+      </header>
 
-          {/* Content Area */}
-          <div className="flex-1 overflow-auto p-6">
+      {/* Content Area */}
+      <div className="flex-1 overflow-auto p-6">
         {loading ? (
           // Initial Loading State (only on first load)
           <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
@@ -298,58 +297,56 @@ export function DashboardClient() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* New Folder Dialog */}
+      <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
+        <DialogContent className="bg-popover border-border max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-medium text-foreground">New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <Input
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              className="bg-card border-border text-foreground focus:border-input"
+              placeholder="Folder name"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateFolder();
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Folders are accessible to anyone in this organization.
+            </p>
+            <Button 
+              onClick={handleCreateFolder}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Done
+            </Button>
           </div>
+        </DialogContent>
+      </Dialog>
 
-          {/* New Folder Dialog */}
-          <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
-            <DialogContent className="bg-popover border-border max-w-sm">
-              <DialogHeader>
-                <DialogTitle className="text-base font-medium text-foreground">New Folder</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <Input
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  className="bg-card border-border text-foreground focus:border-input"
-                  placeholder="Folder name"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleCreateFolder();
-                    }
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Folders are accessible to anyone in this organization.
-                </p>
-                <Button 
-                  onClick={handleCreateFolder}
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  Done
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* New Scene Dialog */}
-          <SimpleInputModal
-            open={newSceneDialogOpen}
-            onOpenChange={(open) => {
-              setNewSceneDialogOpen(open);
-              if (!open) {
-                setNewSceneName('Untitled');
-              }
-            }}
-            title="New Scene"
-            value={newSceneName}
-            onChange={setNewSceneName}
-            onSubmit={handleCreateProject}
-            placeholder="Scene name"
-            helperText="Create a new scene. It will appear in 'All' if no folder is selected."
-            submitLabel="Done"
-          />
-        </>
-      )}
-    </DashboardSidebar>
+      {/* New Scene Dialog */}
+      <SimpleInputModal
+        open={newSceneDialogOpen}
+        onOpenChange={(open) => {
+          setNewSceneDialogOpen(open);
+          if (!open) {
+            setNewSceneName('Untitled');
+          }
+        }}
+        title="New Scene"
+        value={newSceneName}
+        onChange={setNewSceneName}
+        onSubmit={handleCreateProject}
+        placeholder="Scene name"
+        helperText="Create a new scene. It will appear in 'All' if no folder is selected."
+        submitLabel="Done"
+      />
+    </>
   );
 }

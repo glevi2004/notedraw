@@ -1,21 +1,21 @@
-import { auth, currentUser } from '@clerk/nextjs/server'
-import { db } from './db'
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { db } from "./db";
 
 /**
  * Get the current authenticated user from Clerk and sync with database
  * Returns the database user record
  */
 export async function getCurrentUser() {
-  const { userId } = await auth()
+  const { userId } = await auth();
 
   if (!userId) {
-    return null
+    return null;
   }
 
   // Ensure user exists in database
-  const user = await ensureUserExists(userId)
+  const user = await ensureUserExists(userId);
 
-  return user
+  return user;
 }
 
 /**
@@ -23,32 +23,32 @@ export async function getCurrentUser() {
  * Returns the database user record
  */
 export async function ensureUserExists(clerkId: string) {
-  // Check if user exists
-  let user = await db.user.findUnique({
-    where: { clerkId },
-  })
+  // Fetch user data from Clerk
+  const clerkUser = await currentUser();
 
-  if (!user) {
-    // Fetch user data from Clerk
-    const clerkUser = await currentUser()
-
-    if (!clerkUser) {
-      throw new Error('User not found in Clerk')
-    }
-
-    // Create user in database
-    user = await db.user.create({
-      data: {
-        clerkId,
-        email: clerkUser.emailAddresses[0]?.emailAddress || null,
-        firstName: clerkUser.firstName || null,
-        lastName: clerkUser.lastName || null,
-        imageUrl: clerkUser.imageUrl || null,
-      },
-    })
+  if (!clerkUser) {
+    throw new Error("User not found in Clerk");
   }
 
-  return user
+  // Upsert user (update if exists, create if missing)
+  const user = await db.user.upsert({
+    where: { clerkId },
+    update: {
+      email: clerkUser.emailAddresses[0]?.emailAddress || null,
+      firstName: clerkUser.firstName || null,
+      lastName: clerkUser.lastName || null,
+      imageUrl: clerkUser.imageUrl || null,
+    },
+    create: {
+      clerkId,
+      email: clerkUser.emailAddresses[0]?.emailAddress || null,
+      firstName: clerkUser.firstName || null,
+      lastName: clerkUser.lastName || null,
+      imageUrl: clerkUser.imageUrl || null,
+    },
+  });
+
+  return user;
 }
 
 /**
@@ -57,7 +57,7 @@ export async function ensureUserExists(clerkId: string) {
  */
 export async function canAccessFolder(
   userId: string,
-  folderId: string
+  folderId: string,
 ): Promise<boolean> {
   const folder = await db.folder.findUnique({
     where: { id: folderId },
@@ -67,23 +67,23 @@ export async function canAccessFolder(
         where: { userId },
       },
     },
-  })
+  });
 
   if (!folder) {
-    return false
+    return false;
   }
 
   // Check if user is owner
   if (folder.ownerId === userId) {
-    return true
+    return true;
   }
 
   // Check if user is a member
   if (folder.members.length > 0) {
-    return true
+    return true;
   }
 
-  return false
+  return false;
 }
 
 /**
@@ -92,7 +92,7 @@ export async function canAccessFolder(
  */
 export async function canModifyFolder(
   userId: string,
-  folderId: string
+  folderId: string,
 ): Promise<boolean> {
   const folder = await db.folder.findUnique({
     where: { id: folderId },
@@ -102,24 +102,24 @@ export async function canModifyFolder(
         where: { userId },
       },
     },
-  })
+  });
 
   if (!folder) {
-    return false
+    return false;
   }
 
   // Check if user is owner
   if (folder.ownerId === userId) {
-    return true
+    return true;
   }
 
   // Check if user has EDITOR or OWNER role
-  const member = folder.members[0]
-  if (member && (member.role === 'EDITOR' || member.role === 'OWNER')) {
-    return true
+  const member = folder.members[0];
+  if (member && (member.role === "EDITOR" || member.role === "OWNER")) {
+    return true;
   }
 
-  return false
+  return false;
 }
 
 /**
@@ -128,8 +128,8 @@ export async function canModifyFolder(
  */
 export async function getUserFolderRole(
   userId: string,
-  folderId: string
-): Promise<'OWNER' | 'EDITOR' | 'VIEWER' | null> {
+  folderId: string,
+): Promise<"OWNER" | "EDITOR" | "VIEWER" | null> {
   const folder = await db.folder.findUnique({
     where: { id: folderId },
     include: {
@@ -137,22 +137,22 @@ export async function getUserFolderRole(
         where: { userId },
       },
     },
-  })
+  });
 
   if (!folder) {
-    return null
+    return null;
   }
 
   // Check if user is owner
   if (folder.ownerId === userId) {
-    return 'OWNER'
+    return "OWNER";
   }
 
   // Check member role
-  const member = folder.members[0]
+  const member = folder.members[0];
   if (member) {
-    return member.role as 'OWNER' | 'EDITOR' | 'VIEWER'
+    return member.role as "OWNER" | "EDITOR" | "VIEWER";
   }
 
-  return null
+  return null;
 }
