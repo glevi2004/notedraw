@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { NoteEditor } from "./NoteEditor";
 import { useTheme } from "@/context/ThemeContext";
+import { PanelLeft } from "lucide-react";
 
 // Dynamically import Excalidraw to avoid SSR issues
 const Excalidraw = dynamic(
@@ -38,6 +39,8 @@ interface ExcalidrawWithNotesProps {
   theme?: "light" | "dark";
   gridModeEnabled?: boolean;
   UIOptions?: any;
+  sidebarCollapsed?: boolean;
+  onSidebarToggle?: () => void;
 }
 
 export function ExcalidrawWithNotes({
@@ -47,6 +50,8 @@ export function ExcalidrawWithNotes({
   theme: propTheme,
   gridModeEnabled = false,
   UIOptions,
+  sidebarCollapsed,
+  onSidebarToggle,
 }: ExcalidrawWithNotesProps) {
   const { theme: contextTheme } = useTheme();
   const internalRef = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -57,6 +62,9 @@ export function ExcalidrawWithNotes({
 
   // Track all note elements and app state for rendering overlays
   const [noteElements, setNoteElements] = useState<NoteElement[]>([]);
+  const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [appState, setAppState] = useState<{
     scrollX: number;
     scrollY: number;
@@ -150,6 +158,13 @@ export function ExcalidrawWithNotes({
           offsetTop: state.offsetTop,
         });
       }
+
+      // Track selected notes
+      const selectedIds = state.selectedElementIds || {};
+      const selectedNotes = new Set(
+        notes.filter((n) => selectedIds[n.id]).map((n) => n.id),
+      );
+      setSelectedNoteIds(selectedNotes);
     });
 
     // Call parent onChange outside of RAF to avoid loops
@@ -177,21 +192,94 @@ export function ExcalidrawWithNotes({
     [appState],
   );
 
-  // Handle clicking a note to start editing
-  const handleNoteClick = useCallback((noteId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingNoteId(noteId);
-  }, []);
+  // Handle clicking on note border to select (show wireframe)
+  const handleNoteBorderClick = useCallback(
+    (noteId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      // Select in Excalidraw to show wireframe, but don't start editing
+      const api = excalidrawRef.current;
+      if (api) {
+        api.updateScene({
+          appState: {
+            selectedElementIds: { [noteId]: true },
+          },
+        });
+      }
+    },
+    [excalidrawRef],
+  );
+
+  // Handle clicking on note content to start editing
+  const handleNoteContentClick = useCallback(
+    (noteId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      // Start editing on single click
+      if (editingNoteId !== noteId) {
+        setEditingNoteId(noteId);
+      }
+    },
+    [editingNoteId],
+  );
 
   // Handle clicking outside to stop editing
-  const handleContainerClick = useCallback(() => {
-    if (editingNoteId) {
-      setEditingNoteId(null);
-    }
-  }, [editingNoteId]);
+  const handleContainerClick = useCallback(
+    (e: React.MouseEvent) => {
+      // Only stop editing if clicking outside the note editor
+      if (
+        editingNoteId &&
+        !(e.target as HTMLElement).closest(".note-editor-container")
+      ) {
+        setEditingNoteId(null);
+      }
+    },
+    [editingNoteId],
+  );
 
   return (
-    <div className="w-full h-full relative" onClick={handleContainerClick}>
+    <div
+      className="w-full h-full relative"
+      style={{ touchAction: "none" }}
+      onClick={handleContainerClick}
+    >
+      <style>{`
+        .excalidraw .main-menu-trigger {
+          margin-left: 44px !important;
+        }
+        .excalidraw .main-menu-trigger:focus,
+        .excalidraw .main-menu-trigger:active {
+          outline: none;
+          box-shadow: 0 0 0 1px var(--color-surface-lowest);
+        }
+        .excalidraw .sidebar-toggle-btn {
+          position: absolute;
+          top: 16px;
+          left: 16px;
+          z-index: 5;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: var(--lg-button-size);
+          height: var(--lg-button-size);
+          padding: 0.625rem;
+          box-sizing: border-box;
+          border-radius: var(--border-radius-lg);
+          border: none;
+          outline: none;
+          cursor: pointer;
+          background-color: var(--color-surface-low);
+          box-shadow: 0 0 0 1px var(--color-surface-lowest);
+          color: var(--icon-fill-color);
+        }
+        .excalidraw .sidebar-toggle-btn:focus,
+        .excalidraw .sidebar-toggle-btn:active {
+          outline: none;
+          box-shadow: 0 0 0 1px var(--color-surface-lowest);
+        }
+        .excalidraw .sidebar-toggle-btn svg {
+          width: var(--lg-icon-size);
+          height: var(--lg-icon-size);
+        }
+      `}</style>
       <Excalidraw
         excalidrawAPI={(api: ExcalidrawImperativeAPI) => {
           (
@@ -206,7 +294,18 @@ export function ExcalidrawWithNotes({
           ...UIOptions,
           tools: { ...UIOptions?.tools, note: true },
         }}
-      />
+      >
+        {/* Sidebar toggle - rendered inside Excalidraw to inherit CSS variables */}
+        {onSidebarToggle && (
+          <button
+            onClick={onSidebarToggle}
+            className="sidebar-toggle-btn"
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <PanelLeft />
+          </button>
+        )}
+      </Excalidraw>
 
       {/* Render note overlays with embedded WYSIWYG editors */}
       {appState &&
@@ -215,33 +314,34 @@ export function ExcalidrawWithNotes({
           const scale = appState.zoom.value;
           const isEditing = editingNoteId === note.id;
 
-          // Calculate corner radius (scaled)
+          // Calculate corner radius
           const cornerRadius = note.roundness
-            ? Math.min(note.width, note.height) * 0.1 * scale
+            ? Math.min(note.width, note.height) * 0.1
             : 0;
-
-          // Pre-calculate scaled dimensions to avoid transform: scale()
-          // This prevents BlockNote menus from being scaled incorrectly
-          const scaledWidth = note.width * scale;
-          const scaledHeight = note.height * scale;
 
           return (
             <div
               key={note.id}
-              className="absolute"
+              className={`absolute ${isEditing ? "note-editor-container" : ""}`}
               style={{
-                // Position at viewport coordinates (no offset - already in canvas space)
+                // Position at viewport coordinates
                 left: x,
                 top: y,
-                width: `${scaledWidth}px`,
-                height: `${scaledHeight}px`,
-                // Only apply rotation, not scale (dimensions are pre-scaled)
+                // Use unscaled dimensions + transform for seamless scaling
+                width: `${note.width}px`,
+                height: `${note.height}px`,
                 transformOrigin: "0 0",
-                transform: note.angle ? `rotate(${note.angle}rad)` : undefined,
-                pointerEvents: isEditing ? "auto" : "none",
+                transform: `scale(${scale})${note.angle ? ` rotate(${note.angle}rad)` : ""}`,
+                // Always capture pointer events
+                pointerEvents: "auto",
                 zIndex: isEditing ? 100 : 10,
               }}
-              onClick={(e) => handleNoteClick(note.id, e)}
+              onClick={(e) => {
+                // Border click - show wireframe selection
+                if (!isEditing) {
+                  handleNoteBorderClick(note.id, e);
+                }
+              }}
             >
               {/* Draw the note with background, border, and embedded editor */}
               <div
@@ -254,7 +354,7 @@ export function ExcalidrawWithNotes({
                         ? "#2d2d2d"
                         : "#fffce8"
                       : note.backgroundColor || "#fffce8",
-                  border: `${(note.strokeWidth || 2) * scale}px solid ${note.strokeColor || "#1e1e1e"}`,
+                  border: `${note.strokeWidth || 2}px solid ${note.strokeColor || "#1e1e1e"}`,
                   borderRadius: `${cornerRadius}px`,
                   overflow: "hidden",
                   boxSizing: "border-box",
@@ -268,7 +368,13 @@ export function ExcalidrawWithNotes({
                     width: "100%",
                     height: "100%",
                     overflow: "auto",
-                    pointerEvents: isEditing ? "auto" : "none",
+                    pointerEvents: "auto",
+                  }}
+                  onClick={(e) => {
+                    // Content click - start editing
+                    if (!isEditing) {
+                      handleNoteContentClick(note.id, e);
+                    }
                   }}
                 >
                   <NoteEditor
@@ -279,23 +385,6 @@ export function ExcalidrawWithNotes({
                   />
                 </div>
               </div>
-
-              {/* Click overlay when not editing to capture clicks */}
-              {!isEditing && (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    cursor: "pointer",
-                    pointerEvents: "auto",
-                  }}
-                  onClick={(e) => handleNoteClick(note.id, e)}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setEditingNoteId(note.id);
-                  }}
-                />
-              )}
             </div>
           );
         })}

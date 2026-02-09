@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutGrid,
   Folder,
@@ -12,20 +12,20 @@ import {
   Check,
   LogOut,
   Plus,
-  PanelLeft,
   Sun,
   Moon,
-  ChevronsUpDown} from 'lucide-react';
-import { useUser, useClerk } from '@clerk/nextjs';
-import { cn } from '@/lib/utils';
-import { SimpleInputModal } from '@/components/ui/simple-input-modal';
-import { useTheme } from '@/context/ThemeContext';
+  ChevronsUpDown,
+} from "lucide-react";
+import { useUser, useClerk } from "@clerk/nextjs";
+import { cn } from "@/lib/utils";
+import { SimpleInputModal } from "@/components/ui/simple-input-modal";
+import { useTheme } from "@/context/ThemeContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 
 interface NavItem {
   icon: React.ReactNode;
@@ -39,44 +39,53 @@ interface NavSection {
   items: NavItem[];
 }
 
-export function DashboardSidebar({ 
-  children 
-}: { 
-  children: React.ReactNode | ((props: { sidebarCollapsed: boolean; setSidebarCollapsed: (collapsed: boolean) => void }) => React.ReactNode) 
+export function DashboardSidebar({
+  children,
+}: {
+  children:
+    | React.ReactNode
+    | ((props: {
+        sidebarCollapsed: boolean;
+        setSidebarCollapsed: (collapsed: boolean) => void;
+      }) => React.ReactNode);
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentFolderId = searchParams.get('folderId');
+  const currentFolderId = searchParams.get("folderId");
   const { user } = useUser();
   const { signOut } = useClerk();
   const { theme, setTheme } = useTheme();
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [activeItem, setActiveItem] = useState('All');
+  const [activeItem, setActiveItem] = useState("All");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [newWorkspaceDialogOpen, setNewWorkspaceDialogOpen] = useState(false);
-  const [newWorkspaceName, setNewWorkspaceName] = useState('New Workspace');
+  const [newWorkspaceName, setNewWorkspaceName] = useState("New Workspace");
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('New Project');
-  const [folders, setFolders] = useState<Array<{ id: string; name: string }>>([]);
+  const [newProjectName, setNewProjectName] = useState("New Project");
+  const [folders, setFolders] = useState<Array<{ id: string; name: string }>>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const workspaceButtonRef = useRef<HTMLButtonElement>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
 
-  const workspaceName = user?.fullName 
-    ? `${user.fullName}'s workspace` 
+  const workspaceName = user?.fullName
+    ? `${user.fullName}'s workspace`
     : "My workspace";
 
-  const userInitial = user?.firstName?.[0] || user?.username?.[0] || 'G';
-  const userEmail = user?.emailAddresses[0]?.emailAddress || '';
-  const userName = user?.fullName || user?.username || 'User';
+  const userInitial = user?.firstName?.[0] || user?.username?.[0] || "G";
+  const userEmail = user?.emailAddresses[0]?.emailAddress || "";
+  const userName = user?.fullName || user?.username || "User";
 
   const navSections: NavSection[] = [
     {
-      title: 'Workspace',
-      items: [
-        { icon: <LayoutGrid className="w-4 h-4" />, label: 'All' },
-      ],
+      title: "Workspace",
+      items: [{ icon: <LayoutGrid className="w-4 h-4" />, label: "All" }],
     },
   ];
 
@@ -86,15 +95,17 @@ export function DashboardSidebar({
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('/api/folders?parentFolderId=');
+        const response = await fetch("/api/folders?parentFolderId=");
         if (!response.ok) {
-          throw new Error('Failed to fetch folders');
+          throw new Error("Failed to fetch folders");
         }
         const data = await response.json();
         setFolders(data.map((f: any) => ({ id: f.id, name: f.name })));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch folders');
-        console.error('Error fetching folders:', err);
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch folders",
+        );
+        console.error("Error fetching folders:", err);
       } finally {
         setLoading(false);
       }
@@ -106,10 +117,10 @@ export function DashboardSidebar({
   const handleCreateWorkspace = async () => {
     if (newWorkspaceName.trim()) {
       try {
-        const response = await fetch('/api/folders', {
-          method: 'POST',
+        const response = await fetch("/api/folders", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             name: newWorkspaceName.trim(),
@@ -118,16 +129,18 @@ export function DashboardSidebar({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to create workspace');
+          throw new Error("Failed to create workspace");
         }
 
         const newFolder = await response.json();
         setFolders([...folders, { id: newFolder.id, name: newFolder.name }]);
         setNewWorkspaceDialogOpen(false);
-        setNewWorkspaceName('New Workspace');
+        setNewWorkspaceName("New Workspace");
       } catch (err) {
-        console.error('Error creating workspace:', err);
-        setError(err instanceof Error ? err.message : 'Failed to create workspace');
+        console.error("Error creating workspace:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to create workspace",
+        );
       }
     }
   };
@@ -135,10 +148,10 @@ export function DashboardSidebar({
   const handleCreateProject = async () => {
     if (newProjectName.trim()) {
       try {
-        const response = await fetch('/api/folders', {
-          method: 'POST',
+        const response = await fetch("/api/folders", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             name: newProjectName.trim(),
@@ -148,16 +161,18 @@ export function DashboardSidebar({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to create folder');
+          throw new Error("Failed to create folder");
         }
 
         const newFolder = await response.json();
         setFolders([...folders, { id: newFolder.id, name: newFolder.name }]);
         setNewProjectDialogOpen(false);
-        setNewProjectName('New Project');
+        setNewProjectName("New Project");
       } catch (err) {
-        console.error('Error creating folder:', err);
-        setError(err instanceof Error ? err.message : 'Failed to create folder');
+        console.error("Error creating folder:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to create folder",
+        );
       }
     }
   };
@@ -167,7 +182,7 @@ export function DashboardSidebar({
     if (currentFolderId) {
       setActiveItem(currentFolderId);
     } else {
-      setActiveItem('All');
+      setActiveItem("All");
     }
   }, [currentFolderId]);
 
@@ -186,10 +201,10 @@ export function DashboardSidebar({
   return (
     <div className="flex h-screen w-full bg-background">
       {/* Sidebar */}
-      <aside 
+      <aside
         className={cn(
           "flex-shrink-0 bg-card border-r border-border flex flex-col transition-all duration-300",
-          sidebarCollapsed ? "w-[60px]" : "w-[240px]"
+          sidebarCollapsed ? "w-[60px]" : "w-[240px]",
         )}
       >
         {/* Workspace Selector */}
@@ -215,7 +230,9 @@ export function DashboardSidebar({
                 </div>
                 <div className="flex-1 text-left min-w-0">
                   <div className="text-sm font-medium text-foreground truncate">
-                    {workspaceName.length > 20 ? workspaceName.slice(0, 20) + '...' : workspaceName}
+                    {workspaceName.length > 20
+                      ? workspaceName.slice(0, 20) + "..."
+                      : workspaceName}
                   </div>
                   <div className="text-xs text-muted-foreground">1 Member</div>
                 </div>
@@ -223,85 +240,94 @@ export function DashboardSidebar({
               </button>
 
               {/* Workspace Dropdown - rendered via portal */}
-              {workspaceOpen && typeof window !== 'undefined' && createPortal(
-                <>
-                  {/* Backdrop to close on outside click */}
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setWorkspaceOpen(false)}
-                  />
-                  {/* Dropdown content */}
-                  <div
-                    className="fixed bg-popover border border-border rounded-lg shadow-xl z-50 py-2"
-                    style={{
-                      top: `${dropdownPosition.top}px`,
-                      left: `${dropdownPosition.left}px`,
-                      width: `${dropdownPosition.width}px`,
-                      minWidth: '280px', // Ensure minimum width
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* User Info */}
-                    <div className="px-3 py-2 border-b border-border">
-                      <div className="flex items-center gap-3">
-                        {user?.imageUrl ? (
-                          <img 
-                            src={user.imageUrl} 
-                            alt="Profile" 
-                            className="w-8 h-8 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-lg bg-[#4ade80] flex items-center justify-center text-black font-semibold text-sm">
-                            {userInitial}
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-foreground truncate">
-                            {user?.fullName || user?.username}
-                          </div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {userEmail.slice(0, 20)}{userEmail.length > 20 ? '...' : ''}
+              {workspaceOpen &&
+                typeof window !== "undefined" &&
+                createPortal(
+                  <>
+                    {/* Backdrop to close on outside click */}
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setWorkspaceOpen(false)}
+                    />
+                    {/* Dropdown content */}
+                    <div
+                      className="fixed bg-popover border border-border rounded-lg shadow-xl z-50 py-2"
+                      style={{
+                        top: `${dropdownPosition.top}px`,
+                        left: `${dropdownPosition.left}px`,
+                        width: `${dropdownPosition.width}px`,
+                        minWidth: "280px", // Ensure minimum width
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* User Info */}
+                      <div className="px-3 py-2 border-b border-border">
+                        <div className="flex items-center gap-3">
+                          {user?.imageUrl ? (
+                            <img
+                              src={user.imageUrl}
+                              alt="Profile"
+                              className="w-8 h-8 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-[#4ade80] flex items-center justify-center text-black font-semibold text-sm">
+                              {userInitial}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">
+                              {user?.fullName || user?.username}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {userEmail.slice(0, 20)}
+                              {userEmail.length > 20 ? "..." : ""}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Workspaces */}
-                    <div className="px-2 py-2">
-                      <div className="text-xs text-muted-foreground px-2 mb-2">Workspaces</div>
-                      <button className="w-full flex items-center gap-3 p-2 rounded-md bg-accent hover:bg-accent/80 transition-colors">
-                        <div className="w-6 h-6 rounded bg-[#4ade80] flex items-center justify-center text-black font-semibold text-xs">
-                          {userInitial}
+                      {/* Workspaces */}
+                      <div className="px-2 py-2">
+                        <div className="text-xs text-muted-foreground px-2 mb-2">
+                          Workspaces
                         </div>
-                        <div className="flex-1 text-left">
-                          <div className="text-sm text-foreground truncate">
-                            {workspaceName.length > 18 ? workspaceName.slice(0, 18) + '...' : workspaceName}
+                        <button className="w-full flex items-center gap-3 p-2 rounded-md bg-accent hover:bg-accent/80 transition-colors">
+                          <div className="w-6 h-6 rounded bg-[#4ade80] flex items-center justify-center text-black font-semibold text-xs">
+                            {userInitial}
                           </div>
-                          <div className="text-xs text-muted-foreground">Free · 1 member</div>
-                        </div>
-                        <Check className="w-4 h-4 text-[#4ade80]" />
-                      </button>
+                          <div className="flex-1 text-left">
+                            <div className="text-sm text-foreground truncate">
+                              {workspaceName.length > 18
+                                ? workspaceName.slice(0, 18) + "..."
+                                : workspaceName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Free · 1 member
+                            </div>
+                          </div>
+                          <Check className="w-4 h-4 text-[#4ade80]" />
+                        </button>
 
-                      <button className="w-full flex items-center gap-2 p-2 mt-1 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground">
-                        <Plus className="w-4 h-4" />
-                        Create a new workspace
-                      </button>
-                    </div>
+                        <button className="w-full flex items-center gap-2 p-2 mt-1 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground">
+                          <Plus className="w-4 h-4" />
+                          Create a new workspace
+                        </button>
+                      </div>
 
-                    {/* Logout */}
-                    <div className="border-t border-border px-2 pt-2 mt-2">
-                      <button 
-                        onClick={() => signOut()}
-                        className="w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        Sign out
-                      </button>
+                      {/* Logout */}
+                      <div className="border-t border-border px-2 pt-2 mt-2">
+                        <button
+                          onClick={() => signOut()}
+                          className="w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Sign out
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </>,
-                document.body
-              )}
+                  </>,
+                  document.body,
+                )}
             </div>
           )}
         </div>
@@ -312,7 +338,9 @@ export function DashboardSidebar({
             <div key={idx} className="mb-4">
               {!sidebarCollapsed && section.title && (
                 <div className="group px-3 mb-1 flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">{section.title}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {section.title}
+                  </div>
                   <button
                     onClick={() => setNewProjectDialogOpen(true)}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
@@ -329,8 +357,8 @@ export function DashboardSidebar({
                     onClick={() => {
                       setActiveItem(item.label);
                       // If "All" is clicked, go back to base dashboard without folderId
-                      if (item.label === 'All') {
-                        router.push('/dashboard');
+                      if (item.label === "All") {
+                        router.push("/dashboard");
                       }
                     }}
                     className={cn(
@@ -338,7 +366,7 @@ export function DashboardSidebar({
                       activeItem === item.label && !currentFolderId
                         ? "bg-secondary text-foreground"
                         : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                      sidebarCollapsed && "justify-center px-2"
+                      sidebarCollapsed && "justify-center px-2",
                     )}
                     title={sidebarCollapsed ? item.label : undefined}
                   >
@@ -346,46 +374,50 @@ export function DashboardSidebar({
                     {!sidebarCollapsed && <span>{item.label}</span>}
                   </button>
                 ))}
-                
+
                 {/* Render created folders */}
-                {!sidebarCollapsed && folders.map((folder) => (
-                  <button
-                    key={folder.id}
-                    onClick={() => {
-                      setActiveItem(folder.id);
-                      router.push(`/dashboard?folderId=${folder.id}`);
-                    }}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors",
-                      activeItem === folder.id || currentFolderId === folder.id
-                        ? "bg-secondary text-foreground"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                    )}
-                  >
-                    <Folder className="w-4 h-4" />
-                    <span>{folder.name}</span>
-                  </button>
-                ))}
-                
+                {!sidebarCollapsed &&
+                  folders.map((folder) => (
+                    <button
+                      key={folder.id}
+                      onClick={() => {
+                        setActiveItem(folder.id);
+                        router.push(`/dashboard?folderId=${folder.id}`);
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors",
+                        activeItem === folder.id ||
+                          currentFolderId === folder.id
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      )}
+                    >
+                      <Folder className="w-4 h-4" />
+                      <span>{folder.name}</span>
+                    </button>
+                  ))}
+
                 {/* Show folders in collapsed view too */}
-                {sidebarCollapsed && folders.map((folder) => (
-                  <button
-                    key={folder.id}
-                    onClick={() => {
-                      setActiveItem(folder.id);
-                      router.push(`/dashboard?folderId=${folder.id}`);
-                    }}
-                    className={cn(
-                      "w-full flex items-center justify-center px-2 py-1.5 rounded-md text-sm transition-colors",
-                      activeItem === folder.id || currentFolderId === folder.id
-                        ? "bg-secondary text-foreground"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                    )}
-                    title={folder.name}
-                  >
-                    <Folder className="w-4 h-4" />
-                  </button>
-                ))}
+                {sidebarCollapsed &&
+                  folders.map((folder) => (
+                    <button
+                      key={folder.id}
+                      onClick={() => {
+                        setActiveItem(folder.id);
+                        router.push(`/dashboard?folderId=${folder.id}`);
+                      }}
+                      className={cn(
+                        "w-full flex items-center justify-center px-2 py-1.5 rounded-md text-sm transition-colors",
+                        activeItem === folder.id ||
+                          currentFolderId === folder.id
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      )}
+                      title={folder.name}
+                    >
+                      <Folder className="w-4 h-4" />
+                    </button>
+                  ))}
               </div>
             </div>
           ))}
@@ -401,11 +433,15 @@ export function DashboardSidebar({
               </button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button 
+                  <button
                     className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                    title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                    title={
+                      theme === "dark"
+                        ? "Switch to light mode"
+                        : "Switch to dark mode"
+                    }
                   >
-                    {theme === 'dark' ? (
+                    {theme === "dark" ? (
                       <Sun className="w-4 h-4" />
                     ) : (
                       <Moon className="w-4 h-4" />
@@ -413,20 +449,31 @@ export function DashboardSidebar({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" side="right" className="w-40">
-                  <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center gap-2">
+                  <DropdownMenuItem
+                    onClick={() => setTheme("light")}
+                    className="flex items-center gap-2"
+                  >
                     <Sun className="w-4 h-4" />
                     Light
-                    {theme === 'light' && <span className="ml-auto">✓</span>}
+                    {theme === "light" && <span className="ml-auto">✓</span>}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setTheme('dark')} className="flex items-center gap-2">
+                  <DropdownMenuItem
+                    onClick={() => setTheme("dark")}
+                    className="flex items-center gap-2"
+                  >
                     <Moon className="w-4 h-4" />
                     Dark
-                    {theme === 'dark' && <span className="ml-auto">✓</span>}
+                    {theme === "dark" && <span className="ml-auto">✓</span>}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    setTheme(prefersDark ? 'dark' : 'light');
-                  }} className="flex items-center gap-2">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const prefersDark = window.matchMedia(
+                        "(prefers-color-scheme: dark)",
+                      ).matches;
+                      setTheme(prefersDark ? "dark" : "light");
+                    }}
+                    className="flex items-center gap-2"
+                  >
                     <ChevronsUpDown className="w-4 h-4" />
                     System
                   </DropdownMenuItem>
@@ -449,11 +496,15 @@ export function DashboardSidebar({
               <div className="flex items-center gap-1">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button 
+                    <button
                       className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                      title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                      title={
+                        theme === "dark"
+                          ? "Switch to light mode"
+                          : "Switch to dark mode"
+                      }
                     >
-                      {theme === 'dark' ? (
+                      {theme === "dark" ? (
                         <Sun className="w-4 h-4" />
                       ) : (
                         <Moon className="w-4 h-4" />
@@ -461,20 +512,31 @@ export function DashboardSidebar({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center gap-2">
+                    <DropdownMenuItem
+                      onClick={() => setTheme("light")}
+                      className="flex items-center gap-2"
+                    >
                       <Sun className="w-4 h-4" />
                       Light
-                      {theme === 'light' && <span className="ml-auto">✓</span>}
+                      {theme === "light" && <span className="ml-auto">✓</span>}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setTheme('dark')} className="flex items-center gap-2">
+                    <DropdownMenuItem
+                      onClick={() => setTheme("dark")}
+                      className="flex items-center gap-2"
+                    >
                       <Moon className="w-4 h-4" />
                       Dark
-                      {theme === 'dark' && <span className="ml-auto">✓</span>}
+                      {theme === "dark" && <span className="ml-auto">✓</span>}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {
-                      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                      setTheme(prefersDark ? 'dark' : 'light');
-                    }} className="flex items-center gap-2">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const prefersDark = window.matchMedia(
+                          "(prefers-color-scheme: dark)",
+                        ).matches;
+                        setTheme(prefersDark ? "dark" : "light");
+                      }}
+                      className="flex items-center gap-2"
+                    >
                       <ChevronsUpDown className="w-4 h-4" />
                       System
                     </DropdownMenuItem>
@@ -496,7 +558,7 @@ export function DashboardSidebar({
       <main className="flex-1 flex flex-col min-w-0">
         {/* Page Content */}
         <div className="flex-1 flex flex-col min-w-0">
-          {typeof children === 'function' 
+          {typeof children === "function"
             ? children({ sidebarCollapsed, setSidebarCollapsed })
             : children}
         </div>

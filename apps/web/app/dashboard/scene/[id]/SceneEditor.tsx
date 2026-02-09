@@ -3,10 +3,9 @@
 import { useRef, useCallback, useState, useEffect } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useTheme } from "@/context/ThemeContext";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useSidebar } from "@/app/dashboard/components/SidebarContext";
 
 // Dynamically import Excalidraw components to avoid SSR issues
 const ExcalidrawWithNotes = dynamic(
@@ -53,7 +52,7 @@ export function SceneEditor({
 }: SceneEditorProps) {
   const excalidrawRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const { theme } = useTheme();
-  const router = useRouter();
+  const { sidebarCollapsed, setSidebarCollapsed } = useSidebar();
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -195,6 +194,19 @@ export function SceneEditor({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isSaving]);
 
+  // Prevent browser zoom (Ctrl/Cmd+scroll) on scene page - let Excalidraw handle it
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    };
+
+    // Add to document to catch all wheel events on this page
+    document.addEventListener("wheel", handleWheel, { passive: false });
+    return () => document.removeEventListener("wheel", handleWheel);
+  }, []);
+
   // Mark loading as complete after initial render and initialize last saved content
   useEffect(() => {
     setIsLoading(false);
@@ -224,53 +236,27 @@ export function SceneEditor({
     initializeLastSavedContent();
   }, [initialContent, initialData]);
 
-  const handleBack = () => {
-    router.push("/dashboard");
-  };
-
   return (
-    <div className="h-screen w-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-background shrink-0">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleBack}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-          <div className="h-6 w-px bg-border" />
-          <span className="text-sm font-medium truncate max-w-[300px]">
-            {title}
+    <div className="h-full w-full flex flex-col bg-background relative">
+      {/* Save Status - floating indicator */}
+      <div className="absolute top-3 right-3 z-50 flex items-center gap-2">
+        {saveError && (
+          <span className="text-xs text-destructive bg-background/80 px-2 py-1 rounded">
+            Save failed: {saveError}
           </span>
-        </div>
-
-        {/* Note tool is now built into Excalidraw's native toolbar */}
-        <div className="flex items-center" />
-
-        {/* Save Status */}
-        <div className="flex items-center gap-3">
-          {saveError && (
-            <span className="text-xs text-destructive">
-              Save failed: {saveError}
-            </span>
-          )}
-          {isSaving && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Saving...
-            </div>
-          )}
-          {!isSaving && lastSaved && (
-            <span className="text-xs text-muted-foreground">
-              Saved {lastSaved.toLocaleTimeString()}
-            </span>
-          )}
-        </div>
-      </header>
+        )}
+        {isSaving && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Saving...
+          </div>
+        )}
+        {!isSaving && lastSaved && (
+          <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+            Saved {lastSaved.toLocaleTimeString()}
+          </span>
+        )}
+      </div>
 
       {/* Editor */}
       <div className="flex-1 relative">
@@ -286,6 +272,8 @@ export function SceneEditor({
               onChange={handleChange}
               theme={theme === "dark" ? "dark" : "light"}
               gridModeEnabled={false}
+              sidebarCollapsed={sidebarCollapsed}
+              onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
               UIOptions={{
                 canvasActions: {
                   changeViewBackgroundColor: true,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect, useRef } from "react";
 import { BlockNoteEditor, PartialBlock } from "@blocknote/core";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
@@ -39,6 +39,34 @@ export function NoteEditor({
   const editor: BlockNoteEditor = useCreateBlockNote({
     initialContent,
   });
+
+  // Track previous editable state to detect when entering edit mode
+  const wasEditableRef = useRef(editable);
+
+  // When entering edit mode, focus and place cursor at first block
+  useEffect(() => {
+    const wasEditable = wasEditableRef.current;
+    wasEditableRef.current = editable;
+
+    // Only trigger when transitioning from non-editable to editable
+    if (editable && !wasEditable && editor) {
+      // Use setTimeout to ensure BlockNote has fully enabled editing
+      setTimeout(() => {
+        try {
+          // Focus the editor
+          editor.focus();
+          // Place cursor at the start of the first block
+          const blocks = editor.document;
+          if (blocks.length > 0) {
+            editor.setTextCursorPosition(blocks[0].id, "start");
+          }
+        } catch (e) {
+          // Fallback: just focus
+          editor.focus();
+        }
+      }, 0);
+    }
+  }, [editable, editor]);
 
   const handleChange = useCallback(() => {
     if (onChange) {
