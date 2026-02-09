@@ -60,29 +60,68 @@ export function SceneEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const lastSavedContentRef = useRef<string | null>(null);
+  const readyToSaveRef = useRef(false);
 
   // Parse initial content — useMemo since this is computed data, not a callback
   const initialData = useMemo(() => {
     if (!initialContent) {
+      console.log("[SceneEditor] No initial content, starting with empty scene");
       return { elements: [], appState: {}, files: {} };
     }
 
     try {
       const content = initialContent as any;
-      return {
+      const data = {
         elements: Array.isArray(content.elements) ? content.elements : [],
         appState: content.appState || {},
         files: content.files || {},
       };
+      console.log(
+        "[SceneEditor] Parsed initial content:",
+        data.elements.length,
+        "elements",
+      );
+      return data;
     } catch (err) {
-      console.error("Error parsing initial content:", err);
+      console.error("[SceneEditor] Error parsing initial content:", err);
       return { elements: [], appState: {}, files: {} };
     }
   }, [initialContent]);
 
+  // Initialize lastSavedContentRef after Excalidraw has mounted and processed
+  // initialData. This prevents the first auto-save from overwriting DB content.
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (excalidrawRef.current) {
+        try {
+          const { serializeAsJSON } = await import("@excalidraw/excalidraw");
+          const elements = excalidrawRef.current.getSceneElements();
+          const appState = excalidrawRef.current.getAppState();
+          const files = excalidrawRef.current.getFiles();
+          lastSavedContentRef.current = serializeAsJSON(
+            elements,
+            appState,
+            files,
+            "database",
+          );
+          console.log(
+            "[SceneEditor] Initialized save baseline with",
+            elements.length,
+            "elements",
+          );
+        } catch (err) {
+          console.warn("[SceneEditor] Could not initialize save baseline:", err);
+        }
+      }
+      readyToSaveRef.current = true;
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   // Auto-save with debounce (save 2s after last change)
   const saveContent = useDebouncedCallback(async () => {
-    if (!excalidrawRef.current) return;
+    if (!excalidrawRef.current || !readyToSaveRef.current) return;
 
     try {
       const { serializeAsJSON } = await import("@excalidraw/excalidraw");
@@ -103,6 +142,13 @@ export function SceneEditor({
         return;
       }
 
+      console.log(
+        "[SceneEditor] Saving",
+        elements.length,
+        "elements to scene",
+        sceneId,
+      );
+
       lastSavedContentRef.current = serialized;
       const content = JSON.parse(serialized);
 
@@ -116,12 +162,15 @@ export function SceneEditor({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save scene");
+        const errorBody = await response.text();
+        console.error("[SceneEditor] Save failed:", response.status, errorBody);
+        throw new Error(`Failed to save scene (${response.status})`);
       }
 
+      console.log("[SceneEditor] Saved successfully");
       setLastSaved(new Date());
     } catch (err) {
-      console.error("Error saving scene:", err);
+      console.error("[SceneEditor] Error saving scene:", err);
       setSaveError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setIsSaving(false);

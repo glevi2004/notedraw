@@ -91,6 +91,7 @@ export function ExcalidrawWithNotes({
           : [],
         appState: initialData.appState || {},
         files: initialData.files || {},
+        scrollToContent: Array.isArray(initialData.elements) && initialData.elements.length > 0,
       }
     : null;
 
