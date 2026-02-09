@@ -60,7 +60,6 @@ export function SceneEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const lastSavedContentRef = useRef<string | null>(null);
-  const isFirstSaveRef = useRef(true);
 
   // Parse initial content — useMemo since this is computed data, not a callback
   const initialData = useMemo(() => {
@@ -84,12 +83,6 @@ export function SceneEditor({
   // Auto-save with debounce (save 2s after last change)
   const saveContent = useDebouncedCallback(async () => {
     if (!excalidrawRef.current) return;
-
-    // Skip the first debounced save (triggered by initial load)
-    if (isFirstSaveRef.current) {
-      isFirstSaveRef.current = false;
-      return;
-    }
 
     try {
       const { serializeAsJSON } = await import("@excalidraw/excalidraw");

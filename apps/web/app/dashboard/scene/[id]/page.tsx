@@ -33,6 +33,8 @@ export default async function ScenePage({
     if (!canAccess) {
       redirect('/dashboard')
     }
+  } else if (scene.ownerId !== user.id) {
+    redirect('/dashboard')
   }
 
   return (

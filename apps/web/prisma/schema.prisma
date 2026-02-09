@@ -22,6 +22,7 @@ model User {
   
   // Relations
   ownedFolders  Folder[]  @relation("FolderOwner")
+  ownedScenes   Scene[]   @relation("SceneOwner")
   folderMembers FolderMember[]
 
   createdAt     DateTime  @default(now())
@@ -75,16 +76,19 @@ model FolderMember {
 model Scene {
   id            String    @id @default(cuid())
   title         String
+  ownerId       String
   folderId      String?
   content       Json?
   lastEditedBy  String?   // Clerk user ID
   lastEditedAt DateTime?
-  
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   // Relations
-  folder        Folder?    @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  owner         User      @relation("SceneOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  folder        Folder?   @relation(fields: [folderId], references: [id], onDelete: Cascade)
 
+  @@index([ownerId])
   @@index([folderId])
 }

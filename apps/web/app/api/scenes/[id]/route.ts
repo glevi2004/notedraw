@@ -27,12 +27,14 @@ export async function GET(
       return NextResponse.json({ error: 'Scene not found' }, { status: 404 })
     }
 
-    // Check access to folder (if scene is in a folder)
+    // Check access
     if (scene.folderId) {
       const canAccess = await canAccessFolder(user.id, scene.folderId)
       if (!canAccess) {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }
+    } else if (scene.ownerId !== user.id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     return NextResponse.json(scene)
@@ -74,7 +76,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Scene not found' }, { status: 404 })
     }
 
-    // Check modify access to folder (if scene is in a folder)
+    // Check modify access
     if (scene.folderId) {
       const canModify = await canModifyFolder(user.id, scene.folderId)
       if (!canModify) {
@@ -83,6 +85,11 @@ export async function PATCH(
           { status: 403 }
         )
       }
+    } else if (scene.ownerId !== user.id) {
+      return NextResponse.json(
+        { error: 'Permission denied' },
+        { status: 403 }
+      )
     }
 
     const body = await req.json()
@@ -143,7 +150,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Scene not found' }, { status: 404 })
     }
 
-    // Check modify access to folder (if scene is in a folder)
+    // Check modify access
     if (scene.folderId) {
       const canModify = await canModifyFolder(user.id, scene.folderId)
       if (!canModify) {
@@ -152,6 +159,11 @@ export async function DELETE(
           { status: 403 }
         )
       }
+    } else if (scene.ownerId !== user.id) {
+      return NextResponse.json(
+        { error: 'Permission denied' },
+        { status: 403 }
+      )
     }
 
     await db.scene.delete({

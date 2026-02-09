@@ -61,10 +61,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(scenesWithUserNames)
     }
 
-    // If no folderId, return all scenes:
-    // 1. Scenes without folders (folderId is null)
+    // If no folderId, return all scenes the user can access:
+    // 1. Scenes owned by the user without folders
     // 2. Scenes from folders user has access to (owned or member of)
-    
+
     // Get all folders user has access to (owned or member of)
     const accessibleFolders = await db.folder.findMany({
       where: {
@@ -86,11 +86,11 @@ export async function GET(req: NextRequest) {
 
     const folderIds = accessibleFolders.map((f) => f.id)
 
-    // Get all scenes: scenes without folders OR scenes from accessible folders
+    // Get scenes: user's own folderless scenes OR scenes from accessible folders
     const scenes = await db.scene.findMany({
       where: {
         OR: [
-          { folderId: null }, // Scenes without folders
+          { folderId: null, ownerId: user.id }, // Only user's own folderless scenes
           {
             folderId: {
               in: folderIds,
@@ -174,7 +174,8 @@ export async function POST(req: NextRequest) {
     const scene = await db.scene.create({
       data: {
         title,
-        folderId: folderId || null, // Allow null folderId
+        ownerId: user.id,
+        folderId: folderId || null,
         content: content || null,
         lastEditedBy: userId,
         lastEditedAt: new Date(),
