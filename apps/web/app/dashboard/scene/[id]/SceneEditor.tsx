@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useState, useEffect } from "react";
+import { useRef, useCallback, useState, useEffect, useMemo } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useTheme } from "@/context/ThemeContext";
 import { Loader2 } from "lucide-react";
@@ -25,23 +25,25 @@ interface SceneEditorProps {
   initialContent: unknown; // Prisma Json type
 }
 
-// Simple debounce hook
+// Stable debounce hook — uses a ref for the callback so the returned
+// function keeps the same identity across renders.
 function useDebouncedCallback<T extends (...args: any[]) => any>(
   callback: T,
   delay: number,
 ) {
+  const callbackRef = useRef(callback);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
 
   return useCallback(
     (...args: Parameters<T>) => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = setTimeout(() => {
-        callback(...args);
-      }, delay);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => callbackRef.current(...args), delay);
     },
-    [callback, delay],
+    [delay],
   );
 }
 
@@ -58,53 +60,24 @@ export function SceneEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const lastSavedContentRef = useRef<string | null>(null);
+  const isFirstSaveRef = useRef(true);
 
-  // Parse initial content
-  const initialData = useCallback(() => {
+  // Parse initial content — useMemo since this is computed data, not a callback
+  const initialData = useMemo(() => {
     if (!initialContent) {
-      return {
-        elements: [],
-        appState: {},
-        files: {},
-      };
+      return { elements: [], appState: {}, files: {} };
     }
 
     try {
-      // Handle both Excalidraw format and legacy notedraw format
       const content = initialContent as any;
-
-      // If it's already in Excalidraw format (has elements and appState)
-      if (content.elements && content.appState) {
-        return {
-          elements: Array.isArray(content.elements) ? content.elements : [],
-          appState: content.appState || {},
-          files: content.files || {},
-        };
-      }
-
-      // Legacy notedraw format - migrate to Excalidraw format
-      if (content.elements) {
-        return {
-          elements: Array.isArray(content.elements)
-            ? migrateElements(content.elements)
-            : [],
-          appState: migrateAppState(content.appState),
-          files: content.files || {},
-        };
-      }
-
       return {
-        elements: [],
-        appState: {},
-        files: {},
+        elements: Array.isArray(content.elements) ? content.elements : [],
+        appState: content.appState || {},
+        files: content.files || {},
       };
     } catch (err) {
       console.error("Error parsing initial content:", err);
-      return {
-        elements: [],
-        appState: {},
-        files: {},
-      };
+      return { elements: [], appState: {}, files: {} };
     }
   }, [initialContent]);
 
@@ -112,36 +85,21 @@ export function SceneEditor({
   const saveContent = useDebouncedCallback(async () => {
     if (!excalidrawRef.current) return;
 
+    // Skip the first debounced save (triggered by initial load)
+    if (isFirstSaveRef.current) {
+      isFirstSaveRef.current = false;
+      return;
+    }
+
     try {
-      // Dynamically import serializeAsJSON only on client side
       const { serializeAsJSON } = await import("@excalidraw/excalidraw");
 
       const elements = excalidrawRef.current.getSceneElements();
       const appState = excalidrawRef.current.getAppState();
       const files = excalidrawRef.current.getFiles();
 
-      // Include note content from the note store
-      const noteStore = (excalidrawRef.current as any).getNoteStore?.();
-      const elementsWithNoteContent = elements.map((el: any) => {
-        if (el.type === "embeddable" && el.link?.startsWith("note://")) {
-          const noteId = el.link.replace("note://", "");
-          const noteContent = noteStore?.get(noteId);
-          if (noteContent) {
-            return {
-              ...el,
-              customData: {
-                ...el.customData,
-                noteContent,
-              },
-            };
-          }
-        }
-        return el;
-      });
-
-      // Serialize to JSON for storage
       const serialized = serializeAsJSON(
-        elementsWithNoteContent,
+        elements,
         appState,
         files,
         "database",
@@ -149,7 +107,7 @@ export function SceneEditor({
 
       // Only save if content actually changed
       if (lastSavedContentRef.current === serialized) {
-        return; // No changes, skip save
+        return;
       }
 
       lastSavedContentRef.current = serialized;
@@ -202,39 +160,14 @@ export function SceneEditor({
       }
     };
 
-    // Add to document to catch all wheel events on this page
     document.addEventListener("wheel", handleWheel, { passive: false });
     return () => document.removeEventListener("wheel", handleWheel);
   }, []);
 
-  // Mark loading as complete after initial render and initialize last saved content
+  // Mark loading as complete after initial render
   useEffect(() => {
     setIsLoading(false);
-
-    // Initialize lastSavedContentRef with initial content to prevent saving on first load
-    const initializeLastSavedContent = async () => {
-      if (initialContent) {
-        try {
-          const { serializeAsJSON } = await import("@excalidraw/excalidraw");
-          const data = initialData();
-          if (data.elements || data.appState) {
-            const serialized = serializeAsJSON(
-              data.elements || [],
-              data.appState || {},
-              data.files || {},
-              "database",
-            );
-            lastSavedContentRef.current = serialized;
-          }
-        } catch (err) {
-          // If serialization fails, just continue without initializing
-          console.warn("Could not initialize last saved content:", err);
-        }
-      }
-    };
-
-    initializeLastSavedContent();
-  }, [initialContent, initialData]);
+  }, []);
 
   return (
     <div className="h-full w-full flex flex-col bg-background relative">
@@ -268,7 +201,7 @@ export function SceneEditor({
           <div className="w-full h-full">
             <ExcalidrawWithNotes
               excalidrawRef={excalidrawRef}
-              initialData={initialData()}
+              initialData={initialData}
               onChange={handleChange}
               theme={theme === "dark" ? "dark" : "light"}
               gridModeEnabled={false}
@@ -290,183 +223,5 @@ export function SceneEditor({
         )}
       </div>
     </div>
-  );
-}
-
-// Migration functions from notedraw format to Excalidraw format
-function migrateElements(elements: any[]): any[] {
-  if (!Array.isArray(elements)) return [];
-
-  return elements.map((el: any) => {
-    // Map notedraw element types to Excalidraw types
-    const typeMap: Record<string, string> = {
-      rectangle: "rectangle",
-      ellipse: "ellipse",
-      diamond: "diamond",
-      line: "line",
-      arrow: "arrow",
-      freedraw: "freedraw",
-      text: "text",
-      image: "image",
-    };
-
-    const type = typeMap[el.type] || "rectangle";
-
-    // Base element properties
-    const migrated: any = {
-      id: el.id || generateId(),
-      type,
-      x: el.x || 0,
-      y: el.y || 0,
-      width: el.width || 100,
-      height: el.height || 100,
-      angle: el.angle || 0,
-      strokeColor: el.strokeColor || "#1e1e1e",
-      backgroundColor: el.backgroundColor || "transparent",
-      fillStyle: el.fillStyle || "solid",
-      strokeWidth: el.strokeWidth || 2,
-      strokeStyle: el.strokeStyle || "solid",
-      roughness: el.roughness ?? 1,
-      opacity: el.opacity ?? 100,
-      groupIds: el.groupIds || [],
-      frameId: el.frameId || null,
-      boundElements: el.boundElements || [],
-      updated: el.updated || Date.now(),
-      version: el.version || 1,
-      versionNonce: el.versionNonce || Date.now(),
-      isDeleted: el.isDeleted || false,
-      seed: el.seed || Math.floor(Math.random() * 100000),
-      roundness: el.roundness || null,
-    };
-
-    // Type-specific properties
-    if (type === "line" || type === "arrow") {
-      migrated.points = el.points || [
-        [0, 0],
-        [100, 0],
-      ];
-      migrated.startBinding = el.startBinding || null;
-      migrated.endBinding = el.endBinding || null;
-      migrated.startArrowhead = el.startArrowhead || null;
-      migrated.endArrowhead =
-        el.endArrowhead || (type === "arrow" ? "arrow" : null);
-      migrated.elbowed = el.elbowed || false;
-      migrated.fixedSegments = el.fixedSegments || null;
-    }
-
-    if (type === "text") {
-      migrated.text = el.text || "";
-      migrated.fontSize = el.fontSize || 20;
-      migrated.fontFamily = el.fontFamily || 1; // Excalidraw font family value
-      migrated.textAlign = el.textAlign || "left";
-      migrated.verticalAlign = el.verticalAlign || "top";
-      migrated.containerId = el.containerId || null;
-      migrated.originalText = el.originalText || el.text || "";
-      migrated.lineHeight = el.lineHeight || 1.25;
-    }
-
-    if (type === "freedraw") {
-      migrated.points = el.points || [];
-      migrated.simulatePressure = el.simulatePressure ?? true;
-      migrated.pressures = el.pressures || [];
-    }
-
-    if (type === "image") {
-      migrated.fileId = el.fileId || null;
-      migrated.scale = el.scale || [1, 1];
-      migrated.status = el.status || "saved";
-    }
-
-    return migrated;
-  });
-}
-
-function migrateAppState(appState: any): any {
-  if (!appState) return getDefaultAppState();
-
-  return {
-    ...getDefaultAppState(),
-    theme: appState.theme || "light",
-    viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
-    zoom: appState.zoom || { value: 1 },
-    scrollX: appState.scroll?.scrollX || 0,
-    scrollY: appState.scroll?.scrollY || 0,
-    gridSize: appState.gridSize || null,
-    gridModeEnabled: appState.showGrid || false,
-    selectedElementIds: appState.selectedElementIds || {},
-    editingElementId: appState.editingElementId || null,
-    currentStrokeColor: appState.currentStrokeColor || "#1e1e1e",
-    currentBackgroundColor: appState.currentBackgroundColor || "transparent",
-    currentFillStyle: appState.currentFillStyle || "solid",
-    currentStrokeWidth: appState.currentStrokeWidth || 2,
-    currentStrokeStyle: appState.currentStrokeStyle || "solid",
-    currentRoughness: appState.currentRoughness || 1,
-    currentOpacity: appState.currentOpacity ?? 100,
-    currentFontSize: appState.currentFontSize || 20,
-    currentFontFamily: appState.currentFontFamily || 1,
-  };
-}
-
-function getDefaultAppState(): any {
-  return {
-    theme: "light",
-    viewBackgroundColor: "#ffffff",
-    zoom: { value: 1 },
-    scrollX: 0,
-    scrollY: 0,
-    gridSize: null,
-    gridModeEnabled: false,
-    selectedElementIds: {},
-    selectedGroupIds: {},
-    editingElementId: null,
-    currentStrokeColor: "#1e1e1e",
-    currentBackgroundColor: "transparent",
-    currentFillStyle: "solid",
-    currentStrokeWidth: 2,
-    currentStrokeStyle: "solid",
-    currentRoughness: 1,
-    currentOpacity: 100,
-    currentFontSize: 20,
-    currentFontFamily: 1,
-    currentTextAlign: "left",
-    currentStartArrowhead: null,
-    currentEndArrowhead: "arrow",
-    name: "",
-    collaborators: new Map(),
-    activeTool: {
-      type: "selection",
-      customType: null,
-      locked: false,
-    },
-    penMode: false,
-    penDetected: false,
-    exportBackground: true,
-    exportScale: 1,
-    exportEmbedScene: false,
-    exportWithDarkMode: false,
-    openMenu: null,
-    openPopup: null,
-    openSidebar: null,
-    openDialog: null,
-    pasteDialog: { shown: false, data: null },
-    previousSelectedElementIds: {},
-    shouldCacheIgnoreZoom: false,
-    zenModeEnabled: false,
-    toast: null,
-    editingGroupId: null,
-    selectionElement: null,
-    isBindingEnabled: true,
-    startBoundElement: null,
-    suggestedBinding: null,
-    stats: { open: false, panels: 0 },
-    frameRendering: { enabled: true, clip: true, name: true, outline: true },
-    objectsSnapModeEnabled: false,
-  };
-}
-
-function generateId(): string {
-  return (
-    Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15)
   );
 }

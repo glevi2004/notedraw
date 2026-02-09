@@ -159,12 +159,22 @@ export function ExcalidrawWithNotes({
         });
       }
 
-      // Track selected notes
+      // Track selected notes — only update state if the set actually changed
       const selectedIds = state.selectedElementIds || {};
-      const selectedNotes = new Set(
-        notes.filter((n) => selectedIds[n.id]).map((n) => n.id),
-      );
-      setSelectedNoteIds(selectedNotes);
+      const newSelectedNoteIds = notes
+        .filter((n) => selectedIds[n.id])
+        .map((n) => n.id);
+      setSelectedNoteIds((prev) => {
+        const prevArr = Array.from(prev).sort();
+        const newArr = newSelectedNoteIds.sort();
+        if (
+          prevArr.length === newArr.length &&
+          prevArr.every((id, i) => id === newArr[i])
+        ) {
+          return prev;
+        }
+        return new Set(newSelectedNoteIds);
+      });
     });
 
     // Call parent onChange outside of RAF to avoid loops
