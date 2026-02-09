@@ -2,10 +2,14 @@
 
 import { useRef, useCallback, useState, useEffect, useMemo } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/types";
 import { useTheme } from "@/context/ThemeContext";
-import { Loader2 } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSidebar } from "@/app/dashboard/components/SidebarContext";
+import { throttle } from "@/lib/throttle";
+import { getSceneVersion, SceneVersionCache } from "@/lib/scene-version";
+import { SYNC_FULL_SCENE_INTERVAL_MS } from "@/app_constants";
 
 // Dynamically import Excalidraw components to avoid SSR issues
 const ExcalidrawWithNotes = dynamic(
@@ -16,37 +20,21 @@ const ExcalidrawWithNotes = dynamic(
   { ssr: false },
 );
 
-// Excalidraw CSS is now imported by the source components (SCSS)
-// via the local packages. No separate CSS import needed.
-
 interface SceneEditorProps {
   sceneId: string;
   title: string;
-  initialContent: unknown; // Prisma Json type
+  initialContent: unknown;
 }
 
-// Stable debounce hook — uses a ref for the callback so the returned
-// function keeps the same identity across renders.
-function useDebouncedCallback<T extends (...args: any[]) => any>(
-  callback: T,
-  delay: number,
-) {
-  const callbackRef = useRef(callback);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    callbackRef.current = callback;
-  });
-
-  return useCallback(
-    (...args: Parameters<T>) => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => callbackRef.current(...args), delay);
-    },
-    [delay],
-  );
-}
-
+/**
+ * SceneEditor with Excalidraw-style throttled saving
+ * 
+ * Based on Excalidraw's Firebase implementation:
+ * - Uses scene version tracking to skip redundant saves
+ * - Throttled saves (not debounced) for periodic checkpoints
+ * - Immediate save on beforeunload
+ * - No delay when leaving - saves are instant on exit
+ */
 export function SceneEditor({
   sceneId,
   title,
@@ -59,98 +47,112 @@ export function SceneEditor({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const lastSavedContentRef = useRef<string | null>(null);
-  const readyToSaveRef = useRef(false);
+  const [isDirty, setIsDirty] = useState(false);
 
-  // Parse initial content — useMemo since this is computed data, not a callback
+  // Track when Excalidraw has finished loading
+  const hasInitializedRef = useRef(false);
+  // Track pending save (unsaved changes)
+  const hasPendingSaveRef = useRef(false);
+  // Track last successful save time
+  const lastSaveTimeRef = useRef<number>(0);
+
+  // Parse initial content
   const initialData = useMemo(() => {
-    if (!initialContent) {
+    console.log("[SceneEditor] Raw initialContent:", initialContent);
+
+    if (!initialContent || initialContent === null) {
       console.log("[SceneEditor] No initial content, starting with empty scene");
       return { elements: [], appState: {}, files: {} };
     }
 
     try {
-      const content = initialContent as any;
+      let content = initialContent as any;
+
+      // Handle string (if Prisma returns it as string)
+      if (typeof content === "string") {
+        try {
+          content = JSON.parse(content);
+        } catch (e) {
+          console.warn("[SceneEditor] Failed to parse content string:", e);
+          return { elements: [], appState: {}, files: {} };
+        }
+      }
+
+      // Handle empty object
+      if (typeof content === "object" && Object.keys(content).length === 0) {
+        console.log(
+          "[SceneEditor] Content is empty object, starting with empty scene",
+        );
+        return { elements: [], appState: {}, files: {} };
+      }
+
+      // Excalidraw format includes type, version, source - extract what we need
       const data = {
         elements: Array.isArray(content.elements) ? content.elements : [],
         appState: content.appState || {},
         files: content.files || {},
       };
+
       console.log(
         "[SceneEditor] Parsed initial content:",
         data.elements.length,
         "elements",
+        "appState keys:",
+        Object.keys(data.appState).length,
+        "files keys:",
+        Object.keys(data.files).length,
       );
+
+      // Initialize the scene version cache with initial content
+      SceneVersionCache.set(sceneId, data.elements);
+
       return data;
     } catch (err) {
-      console.error("[SceneEditor] Error parsing initial content:", err);
+      console.error(
+        "[SceneEditor] Error parsing initial content:",
+        err,
+        initialContent,
+      );
       return { elements: [], appState: {}, files: {} };
     }
-  }, [initialContent]);
+  }, [initialContent, sceneId]);
 
-  // Initialize lastSavedContentRef after Excalidraw has mounted and processed
-  // initialData. This prevents the first auto-save from overwriting DB content.
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (excalidrawRef.current) {
-        try {
-          const { serializeAsJSON } = await import("@excalidraw/excalidraw");
-          const elements = excalidrawRef.current.getSceneElements();
-          const appState = excalidrawRef.current.getAppState();
-          const files = excalidrawRef.current.getFiles();
-          lastSavedContentRef.current = serializeAsJSON(
-            elements,
-            appState,
-            files,
-            "database",
-          );
-          console.log(
-            "[SceneEditor] Initialized save baseline with",
-            elements.length,
-            "elements",
-          );
-        } catch (err) {
-          console.warn("[SceneEditor] Could not initialize save baseline:", err);
-        }
-      }
-      readyToSaveRef.current = true;
-    }, 1000);
+  /**
+   * Perform the actual save to database
+   */
+  const performSave = useCallback(async (): Promise<boolean> => {
+    if (!excalidrawRef.current || !hasInitializedRef.current) {
+      return false;
+    }
 
-    return () => clearTimeout(timer);
-  }, []);
+    const elements = excalidrawRef.current.getSceneElements();
 
-  // Auto-save with debounce (save 2s after last change)
-  const saveContent = useDebouncedCallback(async () => {
-    if (!excalidrawRef.current || !readyToSaveRef.current) return;
+    // Check if actually changed using scene version
+    if (SceneVersionCache.isSaved(sceneId, elements)) {
+      console.log("[SceneEditor] Scene unchanged, skipping save");
+      setIsDirty(false);
+      hasPendingSaveRef.current = false;
+      return true;
+    }
 
     try {
       const { serializeAsJSON } = await import("@excalidraw/excalidraw");
 
-      const elements = excalidrawRef.current.getSceneElements();
       const appState = excalidrawRef.current.getAppState();
       const files = excalidrawRef.current.getFiles();
 
-      const serialized = serializeAsJSON(
-        elements,
-        appState,
-        files,
-        "database",
-      );
+      const serialized = serializeAsJSON(elements, appState, files, "database");
+      const content = JSON.parse(serialized);
 
-      // Only save if content actually changed
-      if (lastSavedContentRef.current === serialized) {
-        return;
-      }
-
+      const sceneVersion = getSceneVersion(elements);
       console.log(
         "[SceneEditor] Saving",
         elements.length,
-        "elements to scene",
+        "elements (version:",
+        sceneVersion,
+        ") to scene",
         sceneId,
       );
-
-      lastSavedContentRef.current = serialized;
-      const content = JSON.parse(serialized);
 
       setIsSaving(true);
       setSaveError(null);
@@ -167,24 +169,98 @@ export function SceneEditor({
         throw new Error(`Failed to save scene (${response.status})`);
       }
 
-      console.log("[SceneEditor] Saved successfully");
+      // Update cache and tracking
+      SceneVersionCache.set(sceneId, elements);
+      lastSaveTimeRef.current = Date.now();
+      hasPendingSaveRef.current = false;
+      setIsDirty(false);
+
+      console.log("[SceneEditor] Saved successfully (version:", sceneVersion, ")");
       setLastSaved(new Date());
+      return true;
     } catch (err) {
       console.error("[SceneEditor] Error saving scene:", err);
       setSaveError(err instanceof Error ? err.message : "Failed to save");
+      return false;
     } finally {
       setIsSaving(false);
     }
-  }, 2000);
+  }, [sceneId]);
 
-  const handleChange = useCallback(() => {
-    saveContent();
-  }, [saveContent]);
+  /**
+   * Throttled save function
+   * 
+   * Uses SYNC_FULL_SCENE_INTERVAL_MS from app_constants (default 10s)
+   * leading: false = don't save on first change
+   * trailing: true = save after throttle period
+   */
+  const throttledSave = useMemo(
+    () =>
+      throttle(
+        async () => {
+          await performSave();
+        },
+        SYNC_FULL_SCENE_INTERVAL_MS,
+        { leading: false, trailing: true },
+      ),
+    [performSave],
+  );
 
-  // Handle beforeunload to warn about unsaved changes
+  /**
+   * Immediate save (for beforeunload, manual save, etc.)
+   */
+  const immediateSave = useCallback(async () => {
+    throttledSave.flush(); // Flush any pending throttled save
+    return performSave();
+  }, [throttledSave, performSave]);
+
+  /**
+   * Handle changes from Excalidraw
+   */
+  const handleChange = useCallback(
+    (elements: readonly ExcalidrawElement[] | undefined) => {
+      // Guard against undefined/null elements
+      if (!elements || !Array.isArray(elements)) {
+        return;
+      }
+
+      // Mark as initialized on first onChange
+      if (!hasInitializedRef.current) {
+        hasInitializedRef.current = true;
+        console.log("[SceneEditor] Excalidraw initialized, saving enabled");
+        return;
+      }
+
+      // Check if scene actually changed
+      if (SceneVersionCache.isSaved(sceneId, elements)) {
+        // Scene hasn't changed since last save
+        setIsDirty(false);
+        hasPendingSaveRef.current = false;
+        return;
+      }
+
+      // Scene has changes
+      setIsDirty(true);
+      hasPendingSaveRef.current = true;
+
+      // Trigger throttled save
+      throttledSave();
+    },
+    [sceneId, throttledSave],
+  );
+
+  /**
+   * Handle beforeunload - warn about unsaved changes and try to save
+   */
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isSaving) {
+      if (hasPendingSaveRef.current || isSaving) {
+        // Try to save immediately - NO WAITING
+        if (hasPendingSaveRef.current && !isSaving) {
+          immediateSave();
+        }
+
+        // Show browser's unsaved changes warning
         e.preventDefault();
         e.returnValue = "";
       }
@@ -192,9 +268,42 @@ export function SceneEditor({
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isSaving]);
+  }, [isSaving, immediateSave]);
 
-  // Prevent browser zoom (Ctrl/Cmd+scroll) on scene page - let Excalidraw handle it
+  /**
+   * Visibility change - save when user switches back to tab (if pending)
+   */
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && hasPendingSaveRef.current && !isSaving) {
+        console.log("[SceneEditor] Tab visible, flushing pending save");
+        immediateSave();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isSaving, immediateSave]);
+
+  /**
+   * Periodic save check - ensures saves don't get stuck
+   */
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (hasPendingSaveRef.current && !isSaving) {
+        const timeSinceLastSave = Date.now() - lastSaveTimeRef.current;
+        if (timeSinceLastSave > SYNC_FULL_SCENE_INTERVAL_MS) {
+          console.log("[SceneEditor] Periodic save check - saving pending changes");
+          immediateSave();
+        }
+      }
+    }, SYNC_FULL_SCENE_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [isSaving, immediateSave]);
+
+  // Prevent browser zoom (Ctrl/Cmd+scroll) on scene page
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
@@ -211,6 +320,23 @@ export function SceneEditor({
     setIsLoading(false);
   }, []);
 
+  // Reset initialization when scene changes
+  useEffect(() => {
+    hasInitializedRef.current = false;
+    hasPendingSaveRef.current = false;
+    lastSaveTimeRef.current = 0;
+    setIsDirty(false);
+    setSaveError(null);
+
+    // Cancel any pending throttled saves
+    throttledSave.cancel();
+
+    return () => {
+      // Cleanup on unmount / scene change
+      throttledSave.cancel();
+    };
+  }, [sceneId, initialContent, throttledSave]);
+
   return (
     <div className="h-full w-full flex flex-col bg-background relative">
       {/* Save Status - floating indicator */}
@@ -226,7 +352,13 @@ export function SceneEditor({
             Saving...
           </div>
         )}
-        {!isSaving && lastSaved && (
+        {!isSaving && isDirty && (
+          <span className="text-xs text-amber-500 bg-background/80 px-2 py-1 rounded flex items-center gap-1">
+            <Save className="w-3 h-3" />
+            Unsaved changes
+          </span>
+        )}
+        {!isSaving && !isDirty && lastSaved && (
           <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
             Saved {lastSaved.toLocaleTimeString()}
           </span>

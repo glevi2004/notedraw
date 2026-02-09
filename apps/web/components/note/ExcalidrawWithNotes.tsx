@@ -117,6 +117,7 @@ export function ExcalidrawWithNotes({
   // Handle Excalidraw onChange to track note elements and app state
   // Use requestAnimationFrame to batch updates and prevent infinite loops
   const handleExcalidrawChange = useCallback(() => {
+    console.log("[ExcalidrawWithNotes] onChange called");
     if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current);
     }
