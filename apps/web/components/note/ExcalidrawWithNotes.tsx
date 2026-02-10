@@ -146,7 +146,14 @@ export function ExcalidrawWithNotes({
       const elements = api.getSceneElements();
       const updatedElements = elements.map((el: any) => {
         if (el.id === noteId) {
-          return { ...el, noteContent: content };
+          // Bump version so getSceneVersion() detects the change and
+          // the save pipeline doesn't skip it as "already saved".
+          return {
+            ...el,
+            noteContent: content,
+            version: (el.version || 0) + 1,
+            versionNonce: Math.floor(Math.random() * 2147483647),
+          };
         }
         return el;
       });
