@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useEffect, useState } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/element/types";
 import { throttle, type ThrottledFunction } from "@/lib/throttle";
 import { SceneVersionCache } from "@/lib/scene-version";
 import { SYNC_FULL_SCENE_INTERVAL_MS } from "@/app_constants";

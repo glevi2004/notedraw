@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useMemo, useState } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useTheme } from "@/context/ThemeContext";
 import { Loader2, Save } from "lucide-react";
@@ -20,6 +20,7 @@ const ExcalidrawWithNotes = dynamic(
 
 interface SceneEditorProps {
   sceneId: string;
+  title?: string;
   initialContent: unknown;
 }
 
@@ -40,6 +41,25 @@ export function SceneEditor({
   const { theme } = useTheme();
   const { sidebarCollapsed, setSidebarCollapsed } = useSidebar();
   const [isLoading, setIsLoading] = useState(true);
+
+  const handleSidebarToggle = useCallback(() => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  }, [setSidebarCollapsed, sidebarCollapsed]);
+
+  const uiOptions = useMemo(
+    () => ({
+      canvasActions: {
+        changeViewBackgroundColor: true,
+        clearCanvas: true,
+        export: { saveFileToDisk: true },
+        loadScene: true,
+        saveToActiveFile: false,
+        toggleTheme: false,
+        saveAsImage: true,
+      },
+    }),
+    [],
+  );
 
   // Parse initial content
   const initialData = useMemo(() => {
@@ -192,18 +212,8 @@ export function SceneEditor({
               theme={theme === "dark" ? "dark" : "light"}
               gridModeEnabled={false}
               sidebarCollapsed={sidebarCollapsed}
-              onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-              UIOptions={{
-                canvasActions: {
-                  changeViewBackgroundColor: true,
-                  clearCanvas: true,
-                  export: { saveFileToDisk: true },
-                  loadScene: true,
-                  saveToActiveFile: false,
-                  toggleTheme: false,
-                  saveAsImage: true,
-                },
-              }}
+              onSidebarToggle={handleSidebarToggle}
+              UIOptions={uiOptions}
             />
           </div>
         )}

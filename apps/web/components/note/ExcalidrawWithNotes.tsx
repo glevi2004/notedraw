@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { NoteEditor } from "./NoteEditor";
 import { useTheme } from "@/context/ThemeContext";
 import { PanelLeft } from "lucide-react";
+import { getSceneVersion } from "@/lib/scene-version";
 
 // Dynamically import Excalidraw to avoid SSR issues
 const Excalidraw = dynamic(
@@ -41,6 +42,11 @@ interface ExcalidrawWithNotesProps {
   UIOptions?: any;
   sidebarCollapsed?: boolean;
   onSidebarToggle?: () => void;
+  /**
+   * Test-only escape hatch to inject a fake Excalidraw component.
+   * This avoids importing the real Next.js dynamic component in unit tests.
+   */
+  ExcalidrawComponent?: React.ComponentType<any>;
 }
 
 export function ExcalidrawWithNotes({
@@ -52,6 +58,7 @@ export function ExcalidrawWithNotes({
   UIOptions,
   sidebarCollapsed,
   onSidebarToggle,
+  ExcalidrawComponent,
 }: ExcalidrawWithNotesProps) {
   const { theme: contextTheme } = useTheme();
   const internalRef = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -79,21 +86,55 @@ export function ExcalidrawWithNotes({
   const lastNoteElementsRef = useRef<string>("");
   const lastAppStateRef = useRef<string>("");
   const rafIdRef = useRef<number | null>(null);
+  const lastEmittedSceneVersionRef = useRef<number | null>(null);
 
   const effectiveTheme =
     propTheme || (contextTheme === "dark" ? "dark" : "light");
 
-  // Ensure initialData is properly formatted
-  const normalizedInitialData = initialData
-    ? {
-        elements: Array.isArray(initialData.elements)
-          ? initialData.elements
-          : [],
-        appState: initialData.appState || {},
-        files: initialData.files || {},
-        scrollToContent: Array.isArray(initialData.elements) && initialData.elements.length > 0,
-      }
-    : null;
+  // Ensure initialData is properly formatted and referentially stable.
+  const normalizedInitialData = useMemo(() => {
+    if (!initialData) return null;
+    const elements = Array.isArray(initialData.elements) ? initialData.elements : [];
+    return {
+      elements,
+      appState: initialData.appState || {},
+      files: initialData.files || {},
+      scrollToContent: elements.length > 0,
+    };
+  }, [initialData]);
+
+  const mergedUIOptions = useMemo(() => {
+    return {
+      ...UIOptions,
+      tools: { ...UIOptions?.tools, note: true },
+    };
+  }, [UIOptions]);
+
+  const handleExcalidrawAPI = useCallback(
+    (api: ExcalidrawImperativeAPI) => {
+      (
+        excalidrawRef as React.MutableRefObject<ExcalidrawImperativeAPI | null>
+      ).current = api;
+    },
+    [excalidrawRef],
+  );
+
+  const ResolvedExcalidraw = (ExcalidrawComponent || Excalidraw) as React.ComponentType<any>;
+
+  // Memoize the element so Excalidraw doesn't re-render on every wrapper
+  // state update (which can otherwise create an onChange feedback loop).
+  const sidebarToggleChild = useMemo(() => {
+    if (!onSidebarToggle) return null;
+    return (
+      <button
+        onClick={onSidebarToggle}
+        className="sidebar-toggle-btn"
+        title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        <PanelLeft />
+      </button>
+    );
+  }, [onSidebarToggle, sidebarCollapsed]);
 
   // Update note content when editing
   const updateNoteContent = useCallback(
@@ -116,75 +157,82 @@ export function ExcalidrawWithNotes({
 
   // Handle Excalidraw onChange to track note elements and app state
   // Use requestAnimationFrame to batch updates and prevent infinite loops
-  const handleExcalidrawChange = useCallback((elements?: readonly any[]) => {
-    console.log("[ExcalidrawWithNotes] onChange called");
-    
-    // Get elements immediately to pass to parent
-    const api = excalidrawRef.current;
-    const currentElements = elements || api?.getSceneElements() || [];
-    
-    // Call parent onChange immediately with elements
-    onChange?.(currentElements);
-    
-    if (rafIdRef.current) {
-      cancelAnimationFrame(rafIdRef.current);
-    }
+  const handleExcalidrawChange = useCallback(
+    (elements?: readonly any[]) => {
+      // Excalidraw may call onChange for appState/layout updates as well.
+      // Avoid feeding those changes into the parent save pipeline unless
+      // elements actually changed.
+      const api = excalidrawRef.current;
+      const currentElements = elements || api?.getSceneElements() || [];
 
-    rafIdRef.current = requestAnimationFrame(() => {
-      if (!api) return;
-
-      const state = api.getAppState();
-
-      // Extract note elements
-      const notes = currentElements.filter(
-        (el: any) => el.type === "note" && !el.isDeleted,
-      ) as NoteElement[];
-
-      // Only update note elements state if notes actually changed
-      const notesKey = notes
-        .map(
-          (n) =>
-            `${n.id}:${n.x}:${n.y}:${n.width}:${n.height}:${n.noteContent || ""}`,
-        )
-        .join("|");
-      if (notesKey !== lastNoteElementsRef.current) {
-        lastNoteElementsRef.current = notesKey;
-        setNoteElements(notes);
+      const sceneVersion = getSceneVersion(currentElements as any);
+      if (lastEmittedSceneVersionRef.current !== sceneVersion) {
+        lastEmittedSceneVersionRef.current = sceneVersion;
+        onChange?.(currentElements);
       }
 
-      // Only update appState if positioning changed
-      const appStateKey = `${state.scrollX}:${state.scrollY}:${state.zoom.value}:${state.width}:${state.height}:${state.offsetLeft}:${state.offsetTop}`;
-      if (appStateKey !== lastAppStateRef.current) {
-        lastAppStateRef.current = appStateKey;
-        setAppState({
-          scrollX: state.scrollX,
-          scrollY: state.scrollY,
-          zoom: state.zoom,
-          width: state.width,
-          height: state.height,
-          offsetLeft: state.offsetLeft,
-          offsetTop: state.offsetTop,
-        });
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
       }
 
-      // Track selected notes — only update state if the set actually changed
-      const selectedIds = state.selectedElementIds || {};
-      const newSelectedNoteIds = notes
-        .filter((n) => selectedIds[n.id])
-        .map((n) => n.id);
-      setSelectedNoteIds((prev) => {
-        const prevArr = Array.from(prev).sort();
-        const newArr = newSelectedNoteIds.sort();
-        if (
-          prevArr.length === newArr.length &&
-          prevArr.every((id, i) => id === newArr[i])
-        ) {
-          return prev;
+      rafIdRef.current = requestAnimationFrame(() => {
+        const api = excalidrawRef.current;
+        if (!api) return;
+
+        const state = api.getAppState();
+
+        // Extract note elements
+        const notes = currentElements.filter(
+          (el: any) => el.type === "note" && !el.isDeleted,
+        ) as NoteElement[];
+
+        // Only update note elements state if notes actually changed
+        const notesKey = notes
+          .map(
+            (n) =>
+              `${n.id}:${n.x}:${n.y}:${n.width}:${n.height}:${n.noteContent || ""}`,
+          )
+          .join("|");
+        if (notesKey !== lastNoteElementsRef.current) {
+          lastNoteElementsRef.current = notesKey;
+          setNoteElements(notes);
         }
-        return new Set(newSelectedNoteIds);
+
+        // Only update appState if positioning changed
+        const appStateKey = `${state.scrollX}:${state.scrollY}:${state.zoom.value}:${state.width}:${state.height}:${state.offsetLeft}:${state.offsetTop}`;
+        if (appStateKey !== lastAppStateRef.current) {
+          lastAppStateRef.current = appStateKey;
+          setAppState({
+            scrollX: state.scrollX,
+            scrollY: state.scrollY,
+            zoom: state.zoom,
+            width: state.width,
+            height: state.height,
+            offsetLeft: state.offsetLeft,
+            offsetTop: state.offsetTop,
+          });
+        }
+
+        // Track selected notes — only update state if the set actually changed
+        const selectedIds = state.selectedElementIds || {};
+        const newSelectedNoteIds = notes
+          .filter((n) => selectedIds[n.id])
+          .map((n) => n.id);
+        setSelectedNoteIds((prev) => {
+          const prevArr = Array.from(prev).sort();
+          const newArr = newSelectedNoteIds.sort();
+          if (
+            prevArr.length === newArr.length &&
+            prevArr.every((id, i) => id === newArr[i])
+          ) {
+            return prev;
+          }
+          return new Set(newSelectedNoteIds);
+        });
       });
-    });
-  }, [excalidrawRef, onChange]);
+    },
+    [excalidrawRef, onChange],
+  );
 
   // Cleanup RAF on unmount
   useEffect(() => {
@@ -295,32 +343,16 @@ export function ExcalidrawWithNotes({
           height: var(--lg-icon-size);
         }
       `}</style>
-      <Excalidraw
-        excalidrawAPI={(api: ExcalidrawImperativeAPI) => {
-          (
-            excalidrawRef as React.MutableRefObject<ExcalidrawImperativeAPI | null>
-          ).current = api;
-        }}
+      <ResolvedExcalidraw
+        excalidrawAPI={handleExcalidrawAPI}
         initialData={normalizedInitialData}
         onChange={handleExcalidrawChange}
         theme={effectiveTheme}
         gridModeEnabled={gridModeEnabled}
-        UIOptions={{
-          ...UIOptions,
-          tools: { ...UIOptions?.tools, note: true },
-        }}
+        UIOptions={mergedUIOptions}
       >
-        {/* Sidebar toggle - rendered inside Excalidraw to inherit CSS variables */}
-        {onSidebarToggle && (
-          <button
-            onClick={onSidebarToggle}
-            className="sidebar-toggle-btn"
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <PanelLeft />
-          </button>
-        )}
-      </Excalidraw>
+        {sidebarToggleChild}
+      </ResolvedExcalidraw>
 
       {/* Render note overlays with embedded WYSIWYG editors */}
       {appState &&

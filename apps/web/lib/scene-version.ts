@@ -7,7 +7,7 @@
  * - Throttle saves instead of debouncing (periodic saves vs wait-for-idle)
  */
 
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 /**
  * Calculate scene version by summing all element versions

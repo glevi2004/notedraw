@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo, useCallback } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useTheme } from "@/context/ThemeContext";
 import { Loader2, Save } from "lucide-react";
@@ -39,6 +39,10 @@ export function SceneEditorSimple({
   const excalidrawRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const { theme } = useTheme();
   const { sidebarCollapsed, setSidebarCollapsed } = useSidebar();
+
+  const handleSidebarToggle = useCallback(() => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  }, [setSidebarCollapsed, sidebarCollapsed]);
 
   // Parse initial content
   const initialData = useMemo(() => {
@@ -166,7 +170,7 @@ export function SceneEditorSimple({
             theme={theme === "dark" ? "dark" : "light"}
             gridModeEnabled={false}
             sidebarCollapsed={sidebarCollapsed}
-            onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+            onSidebarToggle={handleSidebarToggle}
             UIOptions={{
               canvasActions: {
                 changeViewBackgroundColor: true,
