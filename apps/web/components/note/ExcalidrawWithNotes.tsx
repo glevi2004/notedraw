@@ -63,6 +63,7 @@ export function ExcalidrawWithNotes({
   const { theme: contextTheme } = useTheme();
   const internalRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const excalidrawRef = externalRef || internalRef;
+  const overscrollResetRef = useRef(false);
 
   // Track which note is currently being edited (focused)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -297,6 +298,29 @@ export function ExcalidrawWithNotes({
     },
     [editingNoteId],
   );
+
+  // Excalidraw itself disables overscroll behavior on pointerenter/leave to
+  // prevent trackpad panning from triggering browser back/forward on macOS
+  // Chrome. Our note overlays sit outside the editor container, so we mirror
+  // the same behavior on the outer wrapper so it applies while hovering notes.
+  useEffect(() => {
+    const previousHtml = document.documentElement.style.overscrollBehaviorX;
+    const previousBody = document.body?.style.overscrollBehaviorX ?? "";
+
+    document.documentElement.style.overscrollBehaviorX = "none";
+    if (document.body) {
+      document.body.style.overscrollBehaviorX = "none";
+    }
+    overscrollResetRef.current = true;
+
+    return () => {
+      document.documentElement.style.overscrollBehaviorX = previousHtml;
+      if (document.body) {
+        document.body.style.overscrollBehaviorX = previousBody;
+      }
+      overscrollResetRef.current = false;
+    };
+  }, []);
 
   return (
     <div

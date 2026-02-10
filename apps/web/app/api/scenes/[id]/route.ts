@@ -39,14 +39,29 @@ async function updateScene(
   }
 
   const body = await req.json()
-  const { title, content } = body
+  const { title, content, folderId } = body
 
   const updateData: {
     title?: string
     content?: any
+    folderId?: string | null
     lastEditedBy?: string
     lastEditedAt?: Date
   } = {}
+
+  if (folderId !== undefined && folderId !== scene.folderId) {
+    if (folderId === null) {
+      if (scene.ownerId !== user.id) {
+        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+      }
+    } else {
+      const canModifyTarget = await canModifyFolder(user.id, folderId)
+      if (!canModifyTarget) {
+        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+      }
+    }
+    updateData.folderId = folderId
+  }
 
   if (title !== undefined) updateData.title = title
   if (content !== undefined) updateData.content = content

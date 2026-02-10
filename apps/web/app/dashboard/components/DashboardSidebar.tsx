@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   LayoutGrid,
@@ -53,6 +53,7 @@ export function DashboardSidebar({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const currentFolderId = searchParams.get("folderId");
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -75,6 +76,8 @@ export function DashboardSidebar({
     left: 0,
     width: 0,
   });
+  const isScenePage = pathname?.startsWith("/dashboard/scene");
+  const hideSidebar = isScenePage && sidebarCollapsed;
 
   const workspaceName = user?.fullName
     ? `${user.fullName}'s workspace`
@@ -206,8 +209,13 @@ export function DashboardSidebar({
       <aside
         className={cn(
           "flex-shrink-0 bg-card border-r border-border flex flex-col transition-all duration-300",
-          sidebarCollapsed ? "w-[60px]" : "w-[240px]",
+          hideSidebar
+            ? "w-0 border-r-0 overflow-hidden pointer-events-none opacity-0"
+            : sidebarCollapsed
+              ? "w-[60px]"
+              : "w-[240px]",
         )}
+        aria-hidden={hideSidebar}
       >
         {/* Workspace Selector */}
         <div className="p-3">

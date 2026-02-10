@@ -8982,9 +8982,12 @@ class App extends React.Component<AppProps, AppState> {
       strokeStyle: this.state.currentItemStrokeStyle,
       roughness: this.state.currentItemRoughness,
       opacity: this.state.currentItemOpacity,
-      roundness: this.getCurrentItemRoundness(
-        elementType === "note" ? "rectangle" : elementType,
-      ),
+      // Notes should default to square corners regardless of the current
+      // roundness setting (users can still round them after creation).
+      roundness:
+        elementType === "note"
+          ? null
+          : this.getCurrentItemRoundness(elementType),
       locked: false,
       frameId: topLayerFrame ? topLayerFrame.id : null,
     } as const;

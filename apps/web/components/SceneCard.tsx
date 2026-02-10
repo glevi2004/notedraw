@@ -2,6 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { Lock, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScenePreview } from "./ScenePreview";
 import { TimeAgo } from "./TimeAgo";
 
@@ -15,6 +22,10 @@ interface SceneCardProps {
     lastEditedAt?: string;
     folderId?: string | null;
   };
+  onRename?: (sceneId: string) => void;
+  onDuplicate?: (sceneId: string) => void;
+  onMove?: (sceneId: string) => void;
+  onDelete?: (sceneId: string) => void;
 }
 
 /**
@@ -28,7 +39,13 @@ interface SceneCardProps {
  * - Timestamp badge in the bottom-right of preview
  * - 3-dot menu on hover
  */
-export function SceneCard({ scene }: SceneCardProps) {
+export function SceneCard({
+  scene,
+  onRename,
+  onDuplicate,
+  onMove,
+  onDelete,
+}: SceneCardProps) {
   const router = useRouter();
 
   // Get first name only for display
@@ -63,15 +80,39 @@ export function SceneCard({ scene }: SceneCardProps) {
 
         {/* Hover Actions - 3 dot menu */}
         <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              // TODO: Show context menu with options
-            }}
-            className="p-1.5 bg-black/60 backdrop-blur-sm rounded-md hover:bg-black/80 transition-colors"
-          >
-            <MoreHorizontal className="w-4 h-4 text-white/90" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                className="p-1.5 bg-black/60 backdrop-blur-sm rounded-md hover:bg-black/80 transition-colors"
+              >
+                <MoreHorizontal className="w-4 h-4 text-white/90" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <DropdownMenuItem onSelect={() => onRename?.(scene.id)}>
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onDuplicate?.(scene.id)}>
+                Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onMove?.(scene.id)}>
+                Move
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => onDelete?.(scene.id)}
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

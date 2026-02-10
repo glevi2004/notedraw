@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSidebar } from "./SidebarContext";
@@ -23,6 +23,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Scene {
   id: string;
@@ -56,6 +63,12 @@ export function DashboardClient() {
   const [scenesLoading, setScenesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState("Shared");
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameSceneId, setRenameSceneId] = useState<string | null>(null);
+  const [renameSceneName, setRenameSceneName] = useState("");
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [moveSceneId, setMoveSceneId] = useState<string | null>(null);
+  const [moveFolderId, setMoveFolderId] = useState<string>("none");
 
   // Get folderId from URL params
   const selectedFolderId = searchParams.get("folderId");
@@ -195,6 +208,139 @@ export function DashboardClient() {
     return date.toLocaleDateString();
   };
 
+  const scenesById = useMemo(() => {
+    return new Map(scenes.map((scene) => [scene.id, scene]));
+  }, [scenes]);
+
+  const openRenameDialog = (sceneId: string) => {
+    const scene = scenesById.get(sceneId);
+    if (!scene) return;
+    setRenameSceneId(sceneId);
+    setRenameSceneName(scene.title);
+    setRenameDialogOpen(true);
+  };
+
+  const submitRename = async () => {
+    if (!renameSceneId) return;
+    const title = renameSceneName.trim();
+    if (!title) {
+      setError("Scene name is required");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/scenes/${renameSceneId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to rename scene");
+      }
+
+      setScenes((prev) =>
+        prev.map((scene) =>
+          scene.id === renameSceneId ? { ...scene, title } : scene,
+        ),
+      );
+      setRenameDialogOpen(false);
+      setRenameSceneId(null);
+      setRenameSceneName("");
+    } catch (err) {
+      console.error("Error renaming scene:", err);
+      setError(err instanceof Error ? err.message : "Failed to rename scene");
+    }
+  };
+
+  const handleDuplicate = async (sceneId: string) => {
+    const scene = scenesById.get(sceneId);
+    if (!scene) return;
+
+    try {
+      const response = await fetch("/api/scenes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `${scene.title} (copy)`,
+          folderId: scene.folderId || null,
+          content: scene.content || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to duplicate scene");
+      }
+
+      const newScene = await response.json();
+      if (!selectedFolderId || newScene.folderId === selectedFolderId) {
+        setScenes((prev) => [newScene, ...prev]);
+      }
+    } catch (err) {
+      console.error("Error duplicating scene:", err);
+      setError(err instanceof Error ? err.message : "Failed to duplicate scene");
+    }
+  };
+
+  const openMoveDialog = (sceneId: string) => {
+    const scene = scenesById.get(sceneId);
+    if (!scene) return;
+    setMoveSceneId(sceneId);
+    setMoveFolderId(scene.folderId || "none");
+    setMoveDialogOpen(true);
+  };
+
+  const submitMove = async () => {
+    if (!moveSceneId) return;
+    const folderId = moveFolderId === "none" ? null : moveFolderId;
+
+    try {
+      const response = await fetch(`/api/scenes/${moveSceneId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to move scene");
+      }
+
+      const updated = await response.json();
+      setScenes((prev) => {
+        if (selectedFolderId && updated.folderId !== selectedFolderId) {
+          return prev.filter((scene) => scene.id !== moveSceneId);
+        }
+        return prev.map((scene) =>
+          scene.id === moveSceneId ? { ...scene, folderId: updated.folderId } : scene,
+        );
+      });
+
+      setMoveDialogOpen(false);
+      setMoveSceneId(null);
+      setMoveFolderId("none");
+    } catch (err) {
+      console.error("Error moving scene:", err);
+      setError(err instanceof Error ? err.message : "Failed to move scene");
+    }
+  };
+
+  const handleDelete = async (sceneId: string) => {
+    try {
+      const response = await fetch(`/api/scenes/${sceneId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete scene");
+      }
+
+      setScenes((prev) => prev.filter((scene) => scene.id !== sceneId));
+    } catch (err) {
+      console.error("Error deleting scene:", err);
+      setError(err instanceof Error ? err.message : "Failed to delete scene");
+    }
+  };
+
   return (
     <>
       {/* Header */}
@@ -278,7 +424,14 @@ export function DashboardClient() {
           // Scenes Grid - 4 columns like Excalidraw reference
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {scenes.map((scene) => (
-              <SceneCard key={scene.id} scene={scene} />
+              <SceneCard
+                key={scene.id}
+                scene={scene}
+                onRename={openRenameDialog}
+                onDuplicate={handleDuplicate}
+                onMove={openMoveDialog}
+                onDelete={handleDelete}
+              />
             ))}
           </div>
         )}
@@ -334,6 +487,66 @@ export function DashboardClient() {
         helperText="Create a new scene. It will appear in 'All' if no folder is selected."
         submitLabel="Done"
       />
+
+      {/* Rename Scene Dialog */}
+      <SimpleInputModal
+        open={renameDialogOpen}
+        onOpenChange={(open) => {
+          setRenameDialogOpen(open);
+          if (!open) {
+            setRenameSceneId(null);
+            setRenameSceneName("");
+          }
+        }}
+        title="Rename Scene"
+        value={renameSceneName}
+        onChange={setRenameSceneName}
+        onSubmit={submitRename}
+        placeholder="Scene name"
+        helperText="Update the scene title."
+        submitLabel="Rename"
+      />
+
+      {/* Move Scene Dialog */}
+      <Dialog
+        open={moveDialogOpen}
+        onOpenChange={(open) => {
+          setMoveDialogOpen(open);
+          if (!open) {
+            setMoveSceneId(null);
+            setMoveFolderId("none");
+          }
+        }}
+      >
+        <DialogContent className="bg-popover border-border max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-medium text-foreground">
+              Move Scene
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <Select value={moveFolderId} onValueChange={setMoveFolderId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select folder" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No folder</SelectItem>
+                {folders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={submitMove}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Move
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
