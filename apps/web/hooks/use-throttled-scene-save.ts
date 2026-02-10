@@ -12,6 +12,8 @@ export interface UseThrottledSceneSaveOptions {
   sceneId: string;
   /** API endpoint to save to (e.g., `/api/scenes/${sceneId}`) */
   apiEndpoint: string;
+  /** Disable saving (e.g., during non-leader collaboration sessions) */
+  enabled?: boolean;
   /** Called when save succeeds */
   onSaveSuccess?: () => void;
   /** Called when save fails */
@@ -77,6 +79,7 @@ export function useThrottledSceneSave(
     apiEndpoint,
     onSaveSuccess,
     onSaveError,
+    enabled = true,
   } = options;
 
   const [isSaving, setIsSaving] = useState(false);
@@ -90,11 +93,15 @@ export function useThrottledSceneSave(
   const unloadTriggeredRef = useRef(false);
   const lastSavedPayloadRef = useRef<string | null>(null);
   const throttledSaveRef = useRef<ThrottledFunction<() => Promise<void>> | null>(null);
+  const prevEnabledRef = useRef(enabled);
 
   /**
    * Perform the actual save
    */
   const performSave = useCallback(async (): Promise<boolean> => {
+    if (!enabled) {
+      return false;
+    }
     if (savingRef.current) {
       return false;
     }
@@ -215,7 +222,7 @@ export function useThrottledSceneSave(
       savingRef.current = false;
       setIsSaving(false);
     }
-  }, [excalidrawRef, sceneId, apiEndpoint, onSaveSuccess, onSaveError]);
+  }, [enabled, excalidrawRef, sceneId, apiEndpoint, onSaveSuccess, onSaveError]);
 
   /**
    * Create throttled save function
@@ -233,8 +240,13 @@ export function useThrottledSceneSave(
     [performSave],
   );
 
-  // Keep ref for cleanup
-  throttledSaveRef.current = throttledSave;
+  // Keep ref for cleanup and cancel previous throttles on change
+  useEffect(() => {
+    throttledSaveRef.current = throttledSave;
+    return () => {
+      throttledSave.cancel();
+    };
+  }, [throttledSave]);
 
   /**
    * Handle changes from Excalidraw
@@ -261,31 +273,41 @@ export function useThrottledSceneSave(
         return;
       }
 
-      setIsDirty(true);
       hasPendingSaveRef.current = true;
+      if (!enabled) {
+        return;
+      }
+
+      setIsDirty(true);
       throttledSave();
     },
-    [sceneId, throttledSave],
+    [enabled, sceneId, throttledSave],
   );
 
   /**
    * Immediate save
    */
   const saveImmediately = useCallback(async (): Promise<boolean> => {
+    if (!enabled) {
+      return false;
+    }
     if (!hasPendingSaveRef.current && !isDirty) {
       return true;
     }
     throttledSave.flush();
     return performSave();
-  }, [throttledSave, performSave]);
+  }, [enabled, throttledSave, performSave, isDirty]);
 
   const flushPendingSave = useCallback(async (): Promise<boolean> => {
+    if (!enabled) {
+      return false;
+    }
     if (!hasPendingSaveRef.current && !isDirty) {
       return true;
     }
     throttledSave.flush();
     return performSave();
-  }, [throttledSave, performSave]);
+  }, [enabled, throttledSave, performSave, isDirty]);
 
   /**
    * Check if save is needed
@@ -315,6 +337,27 @@ export function useThrottledSceneSave(
     setSaveError(null);
     throttledSaveRef.current?.cancel();
   }, [sceneId]);
+
+  useEffect(() => {
+    if (prevEnabledRef.current === enabled) {
+      return;
+    }
+    prevEnabledRef.current = enabled;
+
+    if (!enabled) {
+      throttledSaveRef.current?.cancel();
+      if (isDirty) {
+        hasPendingSaveRef.current = true;
+      }
+      setIsDirty(false);
+      setSaveError(null);
+      return;
+    }
+
+    if (hasPendingSaveRef.current) {
+      void performSave();
+    }
+  }, [enabled, isDirty, performSave]);
 
   useEffect(() => {
     const onPageHide = () => {

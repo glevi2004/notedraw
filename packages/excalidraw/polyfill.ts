@@ -23,7 +23,7 @@ const polyfill = () => {
     });
   }
 
-  if (!Element.prototype.replaceChildren) {
+  if (typeof Element !== "undefined" && !Element.prototype.replaceChildren) {
     Element.prototype.replaceChildren = function (...nodes) {
       this.innerHTML = "";
       this.append(...nodes);

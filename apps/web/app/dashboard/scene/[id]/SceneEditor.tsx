@@ -2,12 +2,17 @@
 
 import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { LiveCollaborationTrigger } from "@excalidraw/excalidraw";
 import { useTheme } from "@/context/ThemeContext";
-import { Loader2, Save } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSidebar } from "@/app/dashboard/components/SidebarContext";
 import { SceneVersionCache } from "@/lib/scene-version";
 import { useThrottledSceneSave } from "@/hooks/use-throttled-scene-save";
+import { CollabController, type CollabState } from "@/collab/CollabController";
+import { getCollaborationLinkData } from "@/collab/data";
+import { createShareSnapshot } from "@/collab/share";
+import { ShareDialog } from "@/components/share/ShareDialog";
 
 // Dynamically import Excalidraw components to avoid SSR issues
 const ExcalidrawWithNotes = dynamic(
@@ -38,9 +43,20 @@ export function SceneEditor({
   initialContent,
 }: SceneEditorProps) {
   const excalidrawRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  const [excalidrawAPI, setExcalidrawAPI] =
+    useState<ExcalidrawImperativeAPI | null>(null);
   const { theme } = useTheme();
   const { sidebarCollapsed, setSidebarCollapsed } = useSidebar();
   const [isLoading, setIsLoading] = useState(true);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [collab, setCollab] = useState<CollabController | null>(null);
+  const [collabState, setCollabState] = useState<CollabState>({
+    isCollaborating: false,
+    isLeader: false,
+    activeRoomLink: null,
+    errorMessage: null,
+    username: "",
+  });
 
   const handleSidebarToggle = useCallback(() => {
     setSidebarCollapsed(!sidebarCollapsed);
@@ -122,6 +138,19 @@ export function SceneEditor({
     }
   }, [initialContent, sceneId]);
 
+  // Check if there's a pending collaboration join (hash present but not yet connected)
+  const isCollaborationPending = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const hash = window.location.hash;
+    // If hash contains room data but we're not yet collaborating, we're in pending state
+    return hash.includes("room=") && !collabState.isCollaborating;
+  }, [collabState.isCollaborating]);
+
+  // Disable saves when:
+  // - Collaboration is pending (waiting to join)
+  // - Actively collaborating but not the leader
+  const saveEnabled = !isCollaborationPending && (!collabState.isCollaborating || collabState.isLeader);
+
   const {
     isSaving,
     isDirty,
@@ -134,7 +163,57 @@ export function SceneEditor({
     sceneId,
     apiEndpoint: `/api/scenes/${sceneId}`,
     onSaveError: (error) => console.error("[SceneEditor] Save failed:", error),
+    enabled: saveEnabled,
   });
+
+  const handleSceneChange = useCallback(
+    (elements?: readonly any[]) => {
+      handleChange(elements);
+      if (collab?.isCollaborating()) {
+        collab.syncElements(
+          (elements || excalidrawRef.current?.getSceneElements() || []) as any,
+        );
+      }
+    },
+    [collab, handleChange],
+  );
+
+  useEffect(() => {
+    if (!excalidrawAPI) return;
+    const controller = new CollabController({
+      excalidrawAPI,
+      sceneId,
+      onStateChange: setCollabState,
+    });
+    controller.mount();
+    setCollab(controller);
+    return () => {
+      controller.unmount();
+      setCollab(null);
+    };
+  }, [excalidrawAPI, sceneId]);
+
+  useEffect(() => {
+    if (!collab) return;
+    const handleHash = () => {
+      const data = getCollaborationLinkData(window.location.href);
+      if (data && !collab.isCollaborating()) {
+        collab.startCollaboration(data);
+      }
+      if (!data && collab.isCollaborating()) {
+        collab.stopCollaboration();
+      }
+    };
+    handleHash();
+    window.addEventListener("hashchange", handleHash);
+    return () => window.removeEventListener("hashchange", handleHash);
+  }, [collab]);
+
+  useEffect(() => {
+    if (collabState.isCollaborating && collabState.isLeader) {
+      void saveImmediately();
+    }
+  }, [collabState.isCollaborating, collabState.isLeader, saveImmediately]);
 
   /**
    * Handle beforeunload - warn about unsaved changes and try to save
@@ -207,14 +286,45 @@ export function SceneEditor({
           <div className="w-full h-full">
             <ExcalidrawWithNotes
               excalidrawRef={excalidrawRef}
+              onExcalidrawAPI={setExcalidrawAPI}
               initialData={initialData}
-              onChange={handleChange}
+              onChange={handleSceneChange}
               theme={theme === "dark" ? "dark" : "light"}
               gridModeEnabled={false}
               sidebarCollapsed={sidebarCollapsed}
               onSidebarToggle={handleSidebarToggle}
               UIOptions={uiOptions}
-            />
+              isCollaborating={collabState.isCollaborating}
+              onPointerUpdate={collab?.onPointerUpdate}
+              renderTopRightUI={() => (
+                <LiveCollaborationTrigger
+                  isCollaborating={collabState.isCollaborating}
+                  onSelect={() => setShareDialogOpen(true)}
+                  editorInterface={excalidrawAPI?.getEditorInterface()}
+                />
+              )}
+            >
+              <ShareDialog
+                isOpen={shareDialogOpen}
+                onClose={() => setShareDialogOpen(false)}
+                collabAPI={collab}
+                onExportToBackend={async () => {
+                  const api = excalidrawRef.current;
+                  if (!api) {
+                    return { errorMessage: "Editor not ready" };
+                  }
+                  const elements = api.getSceneElements();
+                  const appState = api.getAppState();
+                  const files = api.getFiles();
+                  return await createShareSnapshot({
+                    elements,
+                    appState,
+                    files,
+                    sceneId,
+                  });
+                }}
+              />
+            </ExcalidrawWithNotes>
           </div>
         )}
       </div>

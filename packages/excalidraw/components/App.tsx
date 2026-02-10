@@ -12467,7 +12467,7 @@ declare global {
 }
 
 export const createTestHook = () => {
-  if (isTestEnv() || isDevEnv()) {
+  if (typeof window !== "undefined" && (isTestEnv() || isDevEnv())) {
     window.h = window.h || ({} as Window["h"]);
 
     Object.defineProperties(window.h, {

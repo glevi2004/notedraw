@@ -1,6 +1,8 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
-export default clerkMiddleware();
+export default clerkMiddleware({
+  publicRoutes: ["/share(.*)", "/api/share(.*)", "/api/collab/files(.*)"],
+});
 
 export const config = {
   matcher: [

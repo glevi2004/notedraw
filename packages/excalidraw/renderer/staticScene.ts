@@ -208,15 +208,25 @@ const renderLinkIcon = (
       linkCanvasCacheContext.fillRect(0, 0, width, height);
 
       if (canvasKey === "elementLink") {
-        linkCanvasCacheContext.drawImage(ELEMENT_LINK_IMG, 0, 0, width, height);
+        if (ELEMENT_LINK_IMG) {
+          linkCanvasCacheContext.drawImage(
+            ELEMENT_LINK_IMG,
+            0,
+            0,
+            width,
+            height,
+          );
+        }
       } else {
-        linkCanvasCacheContext.drawImage(
-          EXTERNAL_LINK_IMG,
-          0,
-          0,
-          width,
-          height,
-        );
+        if (EXTERNAL_LINK_IMG) {
+          linkCanvasCacheContext.drawImage(
+            EXTERNAL_LINK_IMG,
+            0,
+            0,
+            width,
+            height,
+          );
+        }
       }
 
       linkCanvasCacheContext.restore();

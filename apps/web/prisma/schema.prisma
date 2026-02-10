@@ -92,3 +92,29 @@ model Scene {
   @@index([ownerId])
   @@index([folderId])
 }
+
+// Collaboration room (capability-based)
+model CollabRoom {
+  id           String   @id
+  sceneId      String?
+  createdById  String?
+  isPublic     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  lastActiveAt DateTime?
+  revokedAt    DateTime?
+
+  @@index([sceneId])
+}
+
+// Shareable snapshot (encrypted payload stored in blob)
+model ShareSnapshot {
+  id          String   @id
+  sceneId     String?
+  createdById String?
+  blobPath    String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+
+  @@index([sceneId])
+}

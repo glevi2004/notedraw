@@ -27,13 +27,35 @@ export default async function ScenePage({
     redirect('/dashboard')
   }
 
-  // Check access
+  // Check if user has direct access to the scene
+  let hasAccess = false
+  
   if (scene.folderId) {
-    const canAccess = await canAccessFolder(user.id, scene.folderId)
-    if (!canAccess) {
-      redirect('/dashboard')
+    hasAccess = await canAccessFolder(user.id, scene.folderId)
+  } else if (scene.ownerId === user.id) {
+    hasAccess = true
+  }
+
+  // If no direct access, check if there's an active public collaboration room
+  // This allows users to join live sessions even if they don't own the scene
+  if (!hasAccess) {
+    const activeRoom = await db.collabRoom.findFirst({
+      where: {
+        sceneId: id,
+        isPublic: true,
+        revokedAt: null,
+        lastActiveAt: {
+          gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Active in last 24 hours
+        },
+      },
+    })
+
+    if (activeRoom) {
+      hasAccess = true
     }
-  } else if (scene.ownerId !== user.id) {
+  }
+
+  if (!hasAccess) {
     redirect('/dashboard')
   }
 

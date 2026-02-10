@@ -42,6 +42,14 @@ interface ExcalidrawWithNotesProps {
   UIOptions?: any;
   sidebarCollapsed?: boolean;
   onSidebarToggle?: () => void;
+  viewModeEnabled?: boolean;
+  zenModeEnabled?: boolean;
+  isCollaborating?: boolean;
+  onPointerUpdate?: (payload: any) => void;
+  renderTopRightUI?: (props: any) => React.ReactNode;
+  renderTopLeftUI?: (props: any) => React.ReactNode;
+  onExcalidrawAPI?: (api: ExcalidrawImperativeAPI) => void;
+  children?: React.ReactNode;
   /**
    * Test-only escape hatch to inject a fake Excalidraw component.
    * This avoids importing the real Next.js dynamic component in unit tests.
@@ -58,7 +66,15 @@ export function ExcalidrawWithNotes({
   UIOptions,
   sidebarCollapsed,
   onSidebarToggle,
+  viewModeEnabled,
+  zenModeEnabled,
+  isCollaborating,
+  onPointerUpdate,
+  renderTopRightUI,
+  renderTopLeftUI,
+  onExcalidrawAPI,
   ExcalidrawComponent,
+  children,
 }: ExcalidrawWithNotesProps) {
   const { theme: contextTheme } = useTheme();
   const internalRef = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -91,6 +107,7 @@ export function ExcalidrawWithNotes({
 
   const effectiveTheme =
     propTheme || (contextTheme === "dark" ? "dark" : "light");
+  const canEditNotes = !viewModeEnabled;
 
   // Ensure initialData is properly formatted and referentially stable.
   const normalizedInitialData = useMemo(() => {
@@ -100,7 +117,8 @@ export function ExcalidrawWithNotes({
       elements,
       appState: initialData.appState || {},
       files: initialData.files || {},
-      scrollToContent: elements.length > 0,
+      // Respect parent's scrollToContent if explicitly provided, otherwise default to true if elements exist
+      scrollToContent: initialData.scrollToContent ?? elements.length > 0,
     };
   }, [initialData]);
 
@@ -116,8 +134,9 @@ export function ExcalidrawWithNotes({
       (
         excalidrawRef as React.MutableRefObject<ExcalidrawImperativeAPI | null>
       ).current = api;
+      onExcalidrawAPI?.(api);
     },
-    [excalidrawRef],
+    [excalidrawRef, onExcalidrawAPI],
   );
 
   const ResolvedExcalidraw = (ExcalidrawComponent || Excalidraw) as React.ComponentType<any>;
@@ -140,6 +159,7 @@ export function ExcalidrawWithNotes({
   // Update note content when editing
   const updateNoteContent = useCallback(
     (noteId: string, content: string) => {
+      if (!canEditNotes) return;
       const api = excalidrawRef.current;
       if (!api) return;
 
@@ -160,7 +180,7 @@ export function ExcalidrawWithNotes({
       api.updateScene({ elements: updatedElements });
       onChange?.(updatedElements);
     },
-    [excalidrawRef, onChange],
+    [canEditNotes, excalidrawRef, onChange],
   );
 
   // Handle Excalidraw onChange to track note elements and app state
@@ -266,6 +286,7 @@ export function ExcalidrawWithNotes({
   // Handle clicking on note border to select (show wireframe)
   const handleNoteBorderClick = useCallback(
     (noteId: string, e: React.MouseEvent) => {
+      if (!canEditNotes) return;
       e.stopPropagation();
       // Select in Excalidraw to show wireframe, but don't start editing
       const api = excalidrawRef.current;
@@ -277,24 +298,26 @@ export function ExcalidrawWithNotes({
         });
       }
     },
-    [excalidrawRef],
+    [canEditNotes, excalidrawRef],
   );
 
   // Handle clicking on note content to start editing
   const handleNoteContentClick = useCallback(
     (noteId: string, e: React.MouseEvent) => {
+      if (!canEditNotes) return;
       e.stopPropagation();
       // Start editing on single click
       if (editingNoteId !== noteId) {
         setEditingNoteId(noteId);
       }
     },
-    [editingNoteId],
+    [canEditNotes, editingNoteId],
   );
 
   // Handle clicking outside to stop editing
   const handleContainerClick = useCallback(
     (e: React.MouseEvent) => {
+      if (!canEditNotes) return;
       // Only stop editing if clicking outside the note editor
       if (
         editingNoteId &&
@@ -303,7 +326,7 @@ export function ExcalidrawWithNotes({
         setEditingNoteId(null);
       }
     },
-    [editingNoteId],
+    [canEditNotes, editingNoteId],
   );
 
   // Excalidraw's App.tsx toggles overscrollBehaviorX between "none"
@@ -393,8 +416,15 @@ export function ExcalidrawWithNotes({
         theme={effectiveTheme}
         gridModeEnabled={gridModeEnabled}
         UIOptions={mergedUIOptions}
+        viewModeEnabled={viewModeEnabled}
+        zenModeEnabled={zenModeEnabled}
+        isCollaborating={isCollaborating}
+        onPointerUpdate={onPointerUpdate}
+        renderTopRightUI={renderTopRightUI}
+        renderTopLeftUI={renderTopLeftUI}
       >
         {sidebarToggleChild}
+        {children}
       </ResolvedExcalidraw>
 
       {/* Note overlay container: intercepts wheel events and re-asserts
@@ -481,7 +511,7 @@ export function ExcalidrawWithNotes({
                   <NoteEditor
                     content={note.noteContent || ""}
                     onChange={(content) => updateNoteContent(note.id, content)}
-                    editable={isEditing}
+                    editable={canEditNotes && isEditing}
                     theme={effectiveTheme}
                   />
                 </div>
