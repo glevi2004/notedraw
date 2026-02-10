@@ -63,7 +63,7 @@ export function ExcalidrawWithNotes({
   const { theme: contextTheme } = useTheme();
   const internalRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const excalidrawRef = externalRef || internalRef;
-  const overscrollResetRef = useRef(false);
+
 
   // Track which note is currently being edited (focused)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -299,33 +299,45 @@ export function ExcalidrawWithNotes({
     [editingNoteId],
   );
 
-  // Excalidraw itself disables overscroll behavior on pointerenter/leave to
-  // prevent trackpad panning from triggering browser back/forward on macOS
-  // Chrome. Our note overlays sit outside the editor container, so we mirror
-  // the same behavior on the outer wrapper so it applies while hovering notes.
-  useEffect(() => {
-    const previousHtml = document.documentElement.style.overscrollBehaviorX;
-    const previousBody = document.body?.style.overscrollBehaviorX ?? "";
+  // Excalidraw's App.tsx toggles overscrollBehaviorX between "none"
+  // (pointerenter) and "auto" (pointerleave) on its own container div.
+  // Because our note overlays are siblings — not children — of that container,
+  // moving the pointer onto a note fires Excalidraw's pointerleave, resetting
+  // overscrollBehaviorX to "auto" and re-enabling browser back/forward swipe.
+  //
+  // Fix: re-assert "none" whenever the pointer enters a note overlay, and
+  // intercept wheel events (with passive:false + preventDefault) so the
+  // browser never interprets horizontal scroll as navigation — mirroring
+  // exactly what Excalidraw does on its canvas.
+  const noteOverlayContainerRef = useRef<HTMLDivElement | null>(null);
 
-    document.documentElement.style.overscrollBehaviorX = "none";
-    if (document.body) {
-      document.body.style.overscrollBehaviorX = "none";
-    }
-    overscrollResetRef.current = true;
+  useEffect(() => {
+    const container = noteOverlayContainerRef.current;
+    if (!container) return;
+
+    // Wheel handler: prevent default so the browser can't interpret
+    // horizontal deltaX as a back/forward navigation gesture.
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
 
     return () => {
-      document.documentElement.style.overscrollBehaviorX = previousHtml;
-      if (document.body) {
-        document.body.style.overscrollBehaviorX = previousBody;
-      }
-      overscrollResetRef.current = false;
+      container.removeEventListener("wheel", handleWheel);
     };
+  }, []);
+
+  // Re-assert overscrollBehaviorX when pointer enters the note overlay area,
+  // counteracting Excalidraw's pointerleave reset.
+  const handleNoteAreaPointerEnter = useCallback(() => {
+    document.documentElement.style.overscrollBehaviorX = "none";
   }, []);
 
   return (
     <div
       className="w-full h-full relative"
-      style={{ touchAction: "none" }}
+      style={{ touchAction: "none", overflow: "hidden" }}
       onClick={handleContainerClick}
     >
       <style>{`
@@ -378,7 +390,18 @@ export function ExcalidrawWithNotes({
         {sidebarToggleChild}
       </ResolvedExcalidraw>
 
-      {/* Render note overlays with embedded WYSIWYG editors */}
+      {/* Note overlay container: intercepts wheel events and re-asserts
+          overscrollBehaviorX to counteract Excalidraw's pointerleave reset */}
+      <div
+        ref={noteOverlayContainerRef}
+        onPointerEnter={handleNoteAreaPointerEnter}
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          overflow: "hidden",
+        }}
+      >
       {appState &&
         noteElements.map((note) => {
           const { x, y } = sceneToViewport(note.x, note.y);
@@ -459,6 +482,7 @@ export function ExcalidrawWithNotes({
             </div>
           );
         })}
+      </div>
     </div>
   );
 }
