@@ -124,7 +124,7 @@ export function useThrottledSceneSave(
       const appState = excalidrawRef.current.getAppState();
       const files = excalidrawRef.current.getFiles();
 
-      const serialized = serializeAsJSON(elements, appState, files, "database");
+      const serialized = serializeAsJSON(elements, appState, files, "local");
       const content = JSON.parse(serialized);
 
       const payload = JSON.stringify({ content });
@@ -163,6 +163,28 @@ export function useThrottledSceneSave(
           if (!response.ok) {
             const errorBody = await response.text();
             throw new Error(`Failed to save (${response.status}): ${errorBody}`);
+          }
+
+          // Replace local data: URLs with blob URLs returned by the server.
+          // This prevents re-sending large base64 payloads on every subsequent
+          // save and keeps the payload well under serverless body-size limits.
+          try {
+            const result = await response.json();
+            if (result?.content?.files && excalidrawRef.current) {
+              const localFiles = excalidrawRef.current.getFiles();
+              const serverFiles = result.content.files as Record<string, any>;
+              for (const [fileId, serverFile] of Object.entries(serverFiles)) {
+                if (
+                  localFiles[fileId] &&
+                  serverFile?.dataURL &&
+                  /^https?:\/\//.test(serverFile.dataURL)
+                ) {
+                  (localFiles[fileId] as any).dataURL = serverFile.dataURL;
+                }
+              }
+            }
+          } catch {
+            // Response may not be JSON or may lack file data — ignore
           }
         } catch (networkErr: any) {
           setSaveError(

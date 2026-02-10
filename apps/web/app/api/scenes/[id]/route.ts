@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { put } from '@vercel/blob'
 import { getCurrentUser, canAccessFolder, canModifyFolder } from '@/lib/auth'
 import { db } from '@/lib/db'
 
@@ -64,7 +65,57 @@ async function updateScene(
   }
 
   if (title !== undefined) updateData.title = title
-  if (content !== undefined) updateData.content = content
+  if (content !== undefined) {
+    // Upload binary files to Vercel Blob and replace dataURLs with URLs
+    if (content?.files && typeof content.files === 'object') {
+      const files = content.files as Record<string, any>
+      for (const [fileId, file] of Object.entries(files)) {
+        if (!file || typeof file !== 'object') continue
+
+        const dataURL = file.dataURL
+        if (typeof dataURL !== 'string') continue
+
+        // Already normalized to a remote URL – keep as-is
+        if (/^https?:\/\//.test(dataURL)) continue
+
+        if (dataURL.startsWith('data:')) {
+          const ext =
+            file.mimeType && typeof file.mimeType === 'string'
+              ? file.mimeType.split('/')[1] || 'bin'
+              : 'bin'
+          const filename = `scenes/${id}/${fileId}.${ext}`
+
+          try {
+            // Decode the base64 data URL into binary before uploading.
+            // put() treats strings as raw text — passing the data URL directly
+            // would store the literal "data:image/png;base64,..." text instead
+            // of the actual image binary.
+            const base64Data = dataURL.split(',')[1]
+            if (!base64Data) continue
+            const buffer = Buffer.from(base64Data, 'base64')
+
+            const blob = await put(filename, buffer, {
+              access: 'public',
+              allowOverwrite: true, // idempotent saves for unchanged uploads
+              contentType: file.mimeType ?? 'application/octet-stream',
+            })
+            // Persist normalized URL so future saves don't resend data URLs
+            files[fileId] = { ...file, dataURL: blob.url }
+          } catch (blobErr) {
+            const message =
+              blobErr instanceof Error ? blobErr.message : 'Upload failed'
+            // Surface a user-meaningful status instead of generic 500
+            return NextResponse.json(
+              { error: 'Failed to upload file', detail: message },
+              { status: 422 },
+            )
+          }
+        }
+      }
+      content.files = files
+    }
+    updateData.content = content
+  }
   updateData.lastEditedBy = userId
   updateData.lastEditedAt = new Date()
 

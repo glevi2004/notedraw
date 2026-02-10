@@ -4421,7 +4421,10 @@ class App extends React.Component<AppProps, AppState> {
       addedFiles[fileData.id] = fileData;
       nextFiles[fileData.id] = fileData;
 
-      if (fileData.mimeType === MIME_TYPES.svg) {
+      if (
+        fileData.mimeType === MIME_TYPES.svg &&
+        fileData.dataURL.startsWith("data:")
+      ) {
         try {
           const restoredDataURL = getDataURL_sync(
             normalizeSVG(dataURLToString(fileData.dataURL)),
@@ -11167,8 +11170,14 @@ class App extends React.Component<AppProps, AppState> {
       }
     }
 
+    // Prefer a fresh dataURL from the selected file when available.
+    // Reusing a cached HTTP URL can break if the blob was never uploaded
+    // (e.g., a prior save failed), leading to a silent insert error.
+    const existingDataURL = this.files[fileId]?.dataURL;
     const dataURL =
-      this.files[fileId]?.dataURL || (await getDataURL(imageFile));
+      existingDataURL && existingDataURL.startsWith("data:")
+        ? existingDataURL
+        : await getDataURL(imageFile);
 
     return new Promise<NonDeleted<InitializedExcalidrawImageElement>>(
       async (resolve, reject) => {

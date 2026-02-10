@@ -294,6 +294,9 @@ export const getDataURL_sync = (
 };
 
 export const dataURLToFile = (dataURL: DataURL, filename = "") => {
+  if (!dataURL.startsWith("data:")) {
+    throw new Error("dataURLToFile: expected a data: URL");
+  }
   const dataIndexStart = dataURL.indexOf(",");
   const byteString = atob(dataURL.slice(dataIndexStart + 1));
   const mimeType = dataURL.slice(0, dataIndexStart).split(":")[1].split(";")[0];
@@ -307,6 +310,9 @@ export const dataURLToFile = (dataURL: DataURL, filename = "") => {
 };
 
 export const dataURLToString = (dataURL: DataURL) => {
+  if (!dataURL.startsWith("data:")) {
+    throw new Error("dataURLToString: expected a data: URL");
+  }
   return base64ToString(dataURL.slice(dataURL.indexOf(",") + 1));
 };
 
