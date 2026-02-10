@@ -4,14 +4,14 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
-import { 
-  ChevronDown, 
-  Sun, 
-  Moon, 
+import {
+  ChevronDown,
+  ChevronRight,
+  Sun,
+  Moon,
   Monitor,
-  Download,
   Menu,
-  X
+  X,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -49,7 +49,7 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-1 group">
+          <Link href="/?landing=true" className="flex items-center gap-1 group">
             <div className="w-8 h-8 relative">
               <Image
                 src={theme === 'light' ? '/logo-black.png' : '/logo-white.png'}
@@ -150,7 +150,17 @@ export default function Navigation() {
 
             {/* User Button - Signed In */}
             <SignedIn>
-              <UserButton 
+              <Link href="/dashboard">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  <span className="ml-1">Dashboard</span>
+                </Button>
+              </Link>
+              <UserButton
                 appearance={{
                   elements: {
                     avatarBox: "w-8 h-8",
@@ -158,15 +168,6 @@ export default function Navigation() {
                 }}
               />
             </SignedIn>
-
-            {/* Download Button */}
-            <Button 
-              size="sm" 
-              className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-4"
-            >
-              <Download className="w-4 h-4 mr-1.5" />
-              Download
-            </Button>
 
             {/* Mobile Menu Toggle */}
             <button
@@ -217,7 +218,16 @@ export default function Navigation() {
                   </SignUpButton>
                 </SignedOut>
                 <SignedIn>
-                  <div className="px-3 py-2">
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <Link href="/dashboard" className="flex-1">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start text-muted-foreground hover:text-foreground"
+                      >
+                        <ChevronRight className="w-4 h-4 mr-2" />
+                        Dashboard
+                      </Button>
+                    </Link>
                     <UserButton />
                   </div>
                 </SignedIn>

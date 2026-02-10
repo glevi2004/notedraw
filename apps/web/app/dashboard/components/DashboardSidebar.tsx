@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowLeft,
   LayoutGrid,
   Folder,
   Settings,
@@ -489,10 +491,13 @@ export function DashboardSidebar({
           ) : (
             // Expanded bottom actions
             <div className="flex items-center justify-between">
-              <button className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary transition-colors text-sm text-muted-foreground">
-                <LayoutGrid className="w-4 h-4" />
-                <span>1K</span>
-              </button>
+              <Link
+                href="/landing"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary transition-colors text-sm text-muted-foreground"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back</span>
+              </Link>
               <div className="flex items-center gap-1">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

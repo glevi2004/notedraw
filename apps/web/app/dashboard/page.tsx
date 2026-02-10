@@ -6,7 +6,7 @@ export default async function DashboardPage() {
   const { userId } = await auth();
 
   if (!userId) {
-    redirect('/dashboard/sign-in');
+    redirect('/');
   }
 
   return <DashboardClient />;

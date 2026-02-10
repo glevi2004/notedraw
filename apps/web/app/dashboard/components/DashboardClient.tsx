@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SimpleInputModal } from "@/components/ui/simple-input-modal";
+import { SceneCard } from "@/components/SceneCard";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,8 @@ import {
 interface Scene {
   id: string;
   title: string;
+  content?: unknown;
+  folderId?: string | null;
   lastEditedAt?: string;
   lastEditedBy?: string;
   lastEditedByName?: string | null;
@@ -272,38 +275,10 @@ export function DashboardClient() {
             <p className="text-lg text-foreground">No scenes</p>
           </div>
         ) : (
-          // Scenes Grid
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          // Scenes Grid - 4 columns like Excalidraw reference
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {scenes.map((scene) => (
-              <div
-                key={scene.id}
-                onClick={() => router.push(`/dashboard/scene/${scene.id}`)}
-                className="group relative bg-card border border-border rounded-xl overflow-hidden hover:border-input transition-all cursor-pointer"
-              >
-                {/* Scene Preview */}
-                <div className="aspect-[4/3] bg-secondary flex items-center justify-center">
-                  <div className="w-full h-full bg-gradient-to-br from-accent to-card" />
-                </div>
-
-                {/* Scene Info */}
-                <div className="p-4">
-                  <h3 className="text-sm font-medium text-foreground mb-1">
-                    {scene.title}
-                  </h3>
-                  {scene.lastEditedByName && (
-                    <p className="text-xs text-muted-foreground">
-                      by {scene.lastEditedByName}
-                    </p>
-                  )}
-                </div>
-
-                {/* Hover Actions */}
-                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="p-1.5 bg-accent rounded-md hover:bg-accent/80 transition-colors">
-                    <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </div>
-              </div>
+              <SceneCard key={scene.id} scene={scene} />
             ))}
           </div>
         )}

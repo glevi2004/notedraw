@@ -35,7 +35,7 @@ interface NoteElement {
 interface ExcalidrawWithNotesProps {
   excalidrawRef?: React.RefObject<ExcalidrawImperativeAPI | null>;
   initialData?: any;
-  onChange?: () => void;
+  onChange?: (elements?: readonly any[]) => void;
   theme?: "light" | "dark";
   gridModeEnabled?: boolean;
   UIOptions?: any;
@@ -109,28 +109,34 @@ export function ExcalidrawWithNotes({
         return el;
       });
       api.updateScene({ elements: updatedElements });
-      onChange?.();
+      onChange?.(updatedElements);
     },
     [excalidrawRef, onChange],
   );
 
   // Handle Excalidraw onChange to track note elements and app state
   // Use requestAnimationFrame to batch updates and prevent infinite loops
-  const handleExcalidrawChange = useCallback(() => {
+  const handleExcalidrawChange = useCallback((elements?: readonly any[]) => {
     console.log("[ExcalidrawWithNotes] onChange called");
+    
+    // Get elements immediately to pass to parent
+    const api = excalidrawRef.current;
+    const currentElements = elements || api?.getSceneElements() || [];
+    
+    // Call parent onChange immediately with elements
+    onChange?.(currentElements);
+    
     if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current);
     }
 
     rafIdRef.current = requestAnimationFrame(() => {
-      const api = excalidrawRef.current;
       if (!api) return;
 
-      const elements = api.getSceneElements();
       const state = api.getAppState();
 
       // Extract note elements
-      const notes = elements.filter(
+      const notes = currentElements.filter(
         (el: any) => el.type === "note" && !el.isDeleted,
       ) as NoteElement[];
 
@@ -178,9 +184,6 @@ export function ExcalidrawWithNotes({
         return new Set(newSelectedNoteIds);
       });
     });
-
-    // Call parent onChange outside of RAF to avoid loops
-    onChange?.();
   }, [excalidrawRef, onChange]);
 
   // Cleanup RAF on unmount

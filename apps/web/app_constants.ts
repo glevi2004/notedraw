@@ -8,9 +8,9 @@ export const LOAD_IMAGES_TIMEOUT = 500;
  * Full scene sync interval - how often to save to database
  * 
  * Excalidraw uses 20000ms (20s) for Firebase
- * We use 10000ms (10s) for Neon database as a balance between cost and safety
+ * We use 20000ms (20s) to match that balance between cost and safety
  */
-export const SYNC_FULL_SCENE_INTERVAL_MS = 10000;
+export const SYNC_FULL_SCENE_INTERVAL_MS = 20000;
 
 export const SYNC_BROWSER_TABS_TIMEOUT = 50;
 export const CURSOR_SYNC_TIMEOUT = 33; // ~30fps

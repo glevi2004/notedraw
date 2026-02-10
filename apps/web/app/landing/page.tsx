@@ -1,5 +1,3 @@
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
 import Navigation from '@/sections/Navigation';
 import Hero from '@/sections/Hero';
 import DesktopEditorDemo from '@/sections/DesktopEditorDemo';
@@ -9,18 +7,7 @@ import Changelog from '@/sections/Changelog';
 import CTA from '@/sections/CTA';
 import Footer from '@/sections/Footer';
 
-type PageProps = {
-  searchParams?: { [key: string]: string | string[] | undefined };
-};
-
-export default async function LandingPage({ searchParams }: PageProps) {
-  const { userId } = await auth();
-  const forceLanding = searchParams?.landing === 'true';
-
-  if (userId && !forceLanding) {
-    redirect('/dashboard');
-  }
-
+export default function LandingStandalonePage() {
   return (
     <>
       <Navigation />

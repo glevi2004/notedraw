@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useEffect, useState } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/types";
 import { throttle, type ThrottledFunction } from "@/lib/throttle";
-import { getSceneVersion, SceneVersionCache } from "@/lib/scene-version";
+import { SceneVersionCache } from "@/lib/scene-version";
 import { SYNC_FULL_SCENE_INTERVAL_MS } from "@/app_constants";
 
 export interface UseThrottledSceneSaveOptions {
@@ -31,8 +31,8 @@ export interface UseThrottledSceneSaveReturn {
   handleChange: (elements: readonly ExcalidrawElement[] | undefined) => void;
   /** Trigger immediate save (e.g., for manual save button) */
   saveImmediately: () => Promise<boolean>;
-  /** Flush any pending save */
-  flushPendingSave: () => void;
+  /** Flush any pending save immediately */
+  flushPendingSave: () => Promise<boolean>;
   /** Cancel any pending save */
   cancelPendingSave: () => void;
   /** Check if save is needed (scene changed since last save) */
@@ -48,7 +48,7 @@ export interface UseThrottledSceneSaveReturn {
  * 3. Immediate save on beforeunload / tab visibility change
  * 4. Proper cleanup and pending save handling
  * 
- * Uses SYNC_FULL_SCENE_INTERVAL_MS from app_constants (default 10s)
+ * Uses SYNC_FULL_SCENE_INTERVAL_MS from app_constants (default 20s)
  * 
  * @example
  * ```tsx
@@ -86,13 +86,18 @@ export function useThrottledSceneSave(
 
   const hasInitializedRef = useRef(false);
   const hasPendingSaveRef = useRef(false);
-  const lastSaveTimeRef = useRef<number>(0);
+  const savingRef = useRef(false);
+  const unloadTriggeredRef = useRef(false);
+  const lastSavedPayloadRef = useRef<string | null>(null);
   const throttledSaveRef = useRef<ThrottledFunction<() => Promise<void>> | null>(null);
 
   /**
    * Perform the actual save
    */
   const performSave = useCallback(async (): Promise<boolean> => {
+    if (savingRef.current) {
+      return false;
+    }
     if (!excalidrawRef.current || !hasInitializedRef.current) {
       return false;
     }
@@ -103,7 +108,11 @@ export function useThrottledSceneSave(
     }
 
     // Check if actually changed
-    if (SceneVersionCache.isSaved(sceneId, elements)) {
+    if (
+      !hasPendingSaveRef.current &&
+      !isDirty &&
+      SceneVersionCache.isSaved(sceneId, elements)
+    ) {
       setIsDirty(false);
       hasPendingSaveRef.current = false;
       return true;
@@ -118,23 +127,57 @@ export function useThrottledSceneSave(
       const serialized = serializeAsJSON(elements, appState, files, "database");
       const content = JSON.parse(serialized);
 
+      const payload = JSON.stringify({ content });
+      if (payload === lastSavedPayloadRef.current) {
+        setIsDirty(false);
+        hasPendingSaveRef.current = false;
+        return true;
+      }
+      savingRef.current = true;
       setIsSaving(true);
       setSaveError(null);
 
-      const response = await fetch(apiEndpoint, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      });
+      let ok = false;
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Failed to save (${response.status}): ${errorBody}`);
+      // Try beacon only during unload-related flows
+      if (unloadTriggeredRef.current) {
+        if (
+          typeof navigator !== "undefined" &&
+          typeof navigator.sendBeacon === "function" &&
+          payload.length <= 60 * 1024
+        ) {
+          const blob = new Blob([payload], { type: "application/json" });
+          ok = navigator.sendBeacon(apiEndpoint, blob);
+        }
+      }
+
+      if (!ok) {
+        const requestInit: RequestInit = {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+        };
+
+        try {
+          const response = await fetch(apiEndpoint, requestInit);
+          if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`Failed to save (${response.status}): ${errorBody}`);
+          }
+        } catch (networkErr: any) {
+          setSaveError(
+            networkErr instanceof Error
+              ? networkErr.message
+              : "Failed to save (network)",
+          );
+          console.error("[useThrottledSceneSave] save failed", networkErr);
+          return false;
+        }
       }
 
       // Update cache
       SceneVersionCache.set(sceneId, elements);
-      lastSaveTimeRef.current = Date.now();
+      lastSavedPayloadRef.current = payload;
       hasPendingSaveRef.current = false;
       setIsDirty(false);
       setLastSaved(new Date());
@@ -147,6 +190,7 @@ export function useThrottledSceneSave(
       onSaveError?.(error);
       return false;
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   }, [excalidrawRef, sceneId, apiEndpoint, onSaveSuccess, onSaveError]);
@@ -182,9 +226,11 @@ export function useThrottledSceneSave(
 
       if (!hasInitializedRef.current) {
         hasInitializedRef.current = true;
-        // Initialize cache with initial elements
+        // Initialize cache with initial elements but continue if there are changes
         SceneVersionCache.set(sceneId, elements);
-        return;
+        setIsDirty(false);
+        hasPendingSaveRef.current = false;
+        return; // skip hydration onChange; user edits will come next
       }
 
       if (SceneVersionCache.isSaved(sceneId, elements)) {
@@ -204,6 +250,17 @@ export function useThrottledSceneSave(
    * Immediate save
    */
   const saveImmediately = useCallback(async (): Promise<boolean> => {
+    if (!hasPendingSaveRef.current && !isDirty) {
+      return true;
+    }
+    throttledSave.flush();
+    return performSave();
+  }, [throttledSave, performSave]);
+
+  const flushPendingSave = useCallback(async (): Promise<boolean> => {
+    if (!hasPendingSaveRef.current && !isDirty) {
+      return true;
+    }
     throttledSave.flush();
     return performSave();
   }, [throttledSave, performSave]);
@@ -222,6 +279,8 @@ export function useThrottledSceneSave(
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      // attempt to flush once on unmount; then cancel timers
+      throttledSaveRef.current?.flush();
       throttledSaveRef.current?.cancel();
     };
   }, []);
@@ -230,11 +289,36 @@ export function useThrottledSceneSave(
   useEffect(() => {
     hasInitializedRef.current = false;
     hasPendingSaveRef.current = false;
-    lastSaveTimeRef.current = 0;
     setIsDirty(false);
     setSaveError(null);
     throttledSaveRef.current?.cancel();
   }, [sceneId]);
+
+  useEffect(() => {
+    const onPageHide = () => {
+      unloadTriggeredRef.current = true;
+      if (hasPendingSaveRef.current || isDirty) {
+        void saveImmediately();
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (
+        document.visibilityState === "hidden" &&
+        (hasPendingSaveRef.current || isDirty)
+      ) {
+        unloadTriggeredRef.current = true;
+        void saveImmediately();
+      }
+    };
+
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [isDirty, saveImmediately]);
 
   return {
     isSaving,
@@ -243,7 +327,7 @@ export function useThrottledSceneSave(
     lastSaved,
     handleChange,
     saveImmediately,
-    flushPendingSave: throttledSave.flush,
+    flushPendingSave,
     cancelPendingSave: throttledSave.cancel,
     isSaveNeeded,
   };

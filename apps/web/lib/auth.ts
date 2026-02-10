@@ -23,23 +23,21 @@ export async function getCurrentUser() {
  * Returns the database user record
  */
 export async function ensureUserExists(clerkId: string) {
-  // Fetch user data from Clerk
+  // Fast path: return existing DB user without hitting Clerk (avoids rate limits)
+  const existing = await db.user.findUnique({ where: { clerkId } });
+  if (existing) {
+    return existing;
+  }
+
+  // Otherwise fetch from Clerk once and create
   const clerkUser = await currentUser();
 
   if (!clerkUser) {
     throw new Error("User not found in Clerk");
   }
 
-  // Upsert user (update if exists, create if missing)
-  const user = await db.user.upsert({
-    where: { clerkId },
-    update: {
-      email: clerkUser.emailAddresses[0]?.emailAddress || null,
-      firstName: clerkUser.firstName || null,
-      lastName: clerkUser.lastName || null,
-      imageUrl: clerkUser.imageUrl || null,
-    },
-    create: {
+  const user = await db.user.create({
+    data: {
       clerkId,
       email: clerkUser.emailAddresses[0]?.emailAddress || null,
       firstName: clerkUser.firstName || null,

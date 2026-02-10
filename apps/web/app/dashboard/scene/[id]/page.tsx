@@ -13,7 +13,7 @@ export default async function ScenePage({
   const user = await getCurrentUser()
 
   if (!user) {
-    redirect('/dashboard/sign-in')
+    redirect('/')
   }
 
   const scene = await db.scene.findUnique({

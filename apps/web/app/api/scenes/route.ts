@@ -30,6 +30,17 @@ export async function GET(req: NextRequest) {
         orderBy: {
           updatedAt: 'desc',
         },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          folderId: true,
+          ownerId: true,
+          updatedAt: true,
+          lastEditedAt: true,
+          lastEditedBy: true,
+          createdAt: true,
+        },
       })
 
       // Fetch user names for lastEditedBy
@@ -100,6 +111,17 @@ export async function GET(req: NextRequest) {
       },
       orderBy: {
         updatedAt: 'desc',
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        folderId: true,
+        ownerId: true,
+        updatedAt: true,
+        lastEditedAt: true,
+        lastEditedBy: true,
+        createdAt: true,
       },
     })
 
