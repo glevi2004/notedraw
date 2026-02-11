@@ -94,6 +94,34 @@
   }
 }
 
+/* Excalidraw dark theme: remap cool purple tones to warm brown palette */
+.dark .excalidraw.theme--dark {
+  --default-bg-color: hsl(30, 8%, 10%);
+  --island-bg-color: hsl(30, 8%, 14%);
+  --island-bg-color-alt: hsl(30, 8%, 12%);
+  --color-surface-high: hsl(30, 8%, 18%);
+  --color-surface-mid: hsl(30, 8%, 10%);
+  --color-surface-low: hsl(30, 8%, 15%);
+  --color-surface-lowest: hsl(30, 8%, 7%);
+  --color-on-surface: hsl(30, 5%, 90%);
+  --input-bg-color: hsl(30, 8%, 10%);
+  --input-border-color: hsl(30, 6%, 22%);
+  --input-hover-bg-color: hsl(30, 8%, 11%);
+  --button-gray-1: hsl(30, 6%, 22%);
+  --button-gray-2: hsl(30, 8%, 16%);
+  --button-gray-3: hsl(30, 8%, 14%);
+  --popup-secondary-bg-color: hsl(30, 8%, 12%);
+  --popup-text-inverted-color: hsl(30, 8%, 16%);
+  --scrollbar-thumb: hsl(30, 6%, 22%);
+  --scrollbar-thumb-hover: hsl(30, 6%, 30%);
+  --color-surface-primary-container: hsl(30, 15%, 25%);
+  --color-on-primary-container: hsl(30, 10%, 90%);
+  --color-border-outline: hsl(30, 4%, 55%);
+  --color-border-outline-variant: hsl(30, 6%, 28%);
+  --color-primary-light: hsl(30, 12%, 30%);
+  --color-primary-light-darker: hsl(30, 12%, 26%);
+}
+
 @layer base {
   * {
     @apply border-border;

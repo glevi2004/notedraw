@@ -2,9 +2,9 @@
 
 import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { LiveCollaborationTrigger } from "@excalidraw/excalidraw";
+import { LiveCollaborationTrigger, FooterRight } from "@excalidraw/excalidraw";
 import { useTheme } from "@/context/ThemeContext";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSidebar } from "@/app/dashboard/components/SidebarContext";
 import { SceneVersionCache } from "@/lib/scene-version";
@@ -13,6 +13,7 @@ import { CollabController, type CollabState } from "@/collab/CollabController";
 import { getCollaborationLinkData } from "@/collab/data";
 import { createShareSnapshot } from "@/collab/share";
 import { ShareDialog } from "@/components/share/ShareDialog";
+import { SceneAIProvider, useSceneAI, SceneChatInput, SceneAIPanel } from "@/components/ai";
 
 // Dynamically import Excalidraw components to avoid SSR issues
 const ExcalidrawWithNotes = dynamic(
@@ -38,7 +39,25 @@ interface SceneEditorProps {
  * - Immediate save on beforeunload
  * - No delay when leaving - saves are instant on exit
  */
-export function SceneEditor({
+// Component for the AI button that uses the context
+function SceneAIButton() {
+  const { setShowAI } = useSceneAI();
+  
+  return (
+    <button
+      className="help-icon"
+      type="button"
+      title="Ask AI"
+      aria-label="Ask AI"
+      onClick={() => setShowAI(true)}
+    >
+      <Sparkles size={20} />
+    </button>
+  );
+}
+
+// Inner component that uses AI context
+function SceneEditorInner({
   sceneId,
   initialContent,
 }: SceneEditorProps) {
@@ -275,59 +294,77 @@ export function SceneEditor({
   }, [sceneId, initialContent, flushPendingSave]);
 
   return (
-    <div className="h-full w-full flex flex-col bg-background relative">
-      {/* Editor */}
-      <div className="flex-1 relative">
-        {isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <div className="w-full h-full">
-            <ExcalidrawWithNotes
-              excalidrawRef={excalidrawRef}
-              onExcalidrawAPI={setExcalidrawAPI}
-              initialData={initialData}
-              onChange={handleSceneChange}
-              theme={theme === "dark" ? "dark" : "light"}
-              gridModeEnabled={false}
-              sidebarCollapsed={sidebarCollapsed}
-              onSidebarToggle={handleSidebarToggle}
-              UIOptions={uiOptions}
-              isCollaborating={collabState.isCollaborating}
-              onPointerUpdate={collab?.onPointerUpdate}
-              renderTopRightUI={() => (
-                <LiveCollaborationTrigger
-                  isCollaborating={collabState.isCollaborating}
-                  onSelect={() => setShareDialogOpen(true)}
-                  editorInterface={excalidrawAPI?.getEditorInterface()}
+    <>
+      <div className="h-full w-full flex flex-col bg-background relative">
+        {/* Editor */}
+        <div className="flex-1 relative">
+          {isLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="w-full h-full relative">
+              <ExcalidrawWithNotes
+                excalidrawRef={excalidrawRef}
+                onExcalidrawAPI={setExcalidrawAPI}
+                initialData={initialData}
+                onChange={handleSceneChange}
+                theme={theme === "dark" ? "dark" : "light"}
+                gridModeEnabled={false}
+                sidebarCollapsed={sidebarCollapsed}
+                onSidebarToggle={handleSidebarToggle}
+                UIOptions={uiOptions}
+                isCollaborating={collabState.isCollaborating}
+                onPointerUpdate={collab?.onPointerUpdate}
+                renderTopRightUI={() => (
+                  <LiveCollaborationTrigger
+                    isCollaborating={collabState.isCollaborating}
+                    onSelect={() => setShareDialogOpen(true)}
+                    editorInterface={excalidrawAPI?.getEditorInterface()}
+                  />
+                )}
+              >
+                <FooterRight>
+                  <SceneAIButton />
+                </FooterRight>
+                <ShareDialog
+                  isOpen={shareDialogOpen}
+                  onClose={() => setShareDialogOpen(false)}
+                  collabAPI={collab}
+                  onExportToBackend={async () => {
+                    const api = excalidrawRef.current;
+                    if (!api) {
+                      return { errorMessage: "Editor not ready" };
+                    }
+                    const elements = api.getSceneElements();
+                    const appState = api.getAppState();
+                    const files = api.getFiles();
+                    return await createShareSnapshot({
+                      elements,
+                      appState,
+                      files,
+                      sceneId,
+                    });
+                  }}
                 />
-              )}
-            >
-              <ShareDialog
-                isOpen={shareDialogOpen}
-                onClose={() => setShareDialogOpen(false)}
-                collabAPI={collab}
-                onExportToBackend={async () => {
-                  const api = excalidrawRef.current;
-                  if (!api) {
-                    return { errorMessage: "Editor not ready" };
-                  }
-                  const elements = api.getSceneElements();
-                  const appState = api.getAppState();
-                  const files = api.getFiles();
-                  return await createShareSnapshot({
-                    elements,
-                    appState,
-                    files,
-                    sceneId,
-                  });
-                }}
-              />
-            </ExcalidrawWithNotes>
-          </div>
-        )}
+              </ExcalidrawWithNotes>
+              {/* AI Chat Input - positioned relative to editor */}
+              <SceneChatInput />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+      {/* AI Panel - fixed on the right side */}
+      <SceneAIPanel />
+    </>
+  );
+}
+
+// Main exported component that wraps with AI Provider
+export function SceneEditor(props: SceneEditorProps) {
+  return (
+    <SceneAIProvider>
+      <SceneEditorInner {...props} />
+    </SceneAIProvider>
   );
 }

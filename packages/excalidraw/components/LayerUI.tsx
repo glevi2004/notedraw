@@ -18,7 +18,7 @@ import { ShapeCache } from "@excalidraw/element";
 
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 
-import { actionToggleStats } from "../actions";
+import { actionToggleStats, actionShortcuts } from "../actions";
 import { trackEvent } from "../analytics";
 import { isHandToolActive } from "../appState";
 import { TunnelsContext, useInitializeTunnels } from "../context/tunnels";
@@ -56,6 +56,7 @@ import { ErrorDialog } from "./ErrorDialog";
 import { EyeDropper, activeEyeDropperAtom } from "./EyeDropper";
 import { FixedSideContainer } from "./FixedSideContainer";
 import { HandButton } from "./HandButton";
+import { HelpButton } from "./HelpButton";
 import { HelpDialog } from "./HelpDialog";
 import { HintViewer } from "./HintViewer";
 import { ImageExportDialog } from "./ImageExportDialog";
@@ -415,6 +416,16 @@ const LayerUI = ({
                 userToFollow={appState.userToFollow?.socketId || null}
               />
             )}
+            <div style={{ position: "relative" }}>
+              {renderWelcomeScreen && (
+                <tunnels.WelcomeScreenHelpHintTunnel.Out />
+              )}
+              <HelpButton
+                onClick={() =>
+                  actionManager.executeAction(actionShortcuts)
+                }
+              />
+            </div>
             {renderTopRightUI?.(
               editorInterface.formFactor === "phone",
               appState,
@@ -612,7 +623,6 @@ const LayerUI = ({
               appState={appState}
               actionManager={actionManager}
               showExitZenModeBtn={showExitZenModeBtn}
-              renderWelcomeScreen={renderWelcomeScreen}
             />
             {appState.scrolledOutside && (
               <button
