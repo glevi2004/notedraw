@@ -34,7 +34,7 @@ const LiveCollaborationTrigger = ({
       style={{ position: "relative", width: showIconOnly ? undefined : "auto" }}
       title={t("labels.liveCollaboration")}
     >
-      {showIconOnly ? share : t("labels.share")}
+      {share}
       {appState.collaborators.size > 0 && (
         <div className="CollabButton-collaborators">
           {appState.collaborators.size}

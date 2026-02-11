@@ -79,6 +79,7 @@ model Scene {
   ownerId       String
   folderId      String?
   content       Json?
+  searchText    String?   @db.Text
   lastEditedBy  String?   // Clerk user ID
   lastEditedAt DateTime?
 

@@ -17,6 +17,7 @@ import {
   Sun,
   Moon,
   ChevronsUpDown,
+  Search,
 } from "lucide-react";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,14 @@ export function DashboardSidebar({
   const { user } = useUser();
   const { signOut } = useClerk();
   const { theme, setTheme } = useTheme();
+  const currentQuery = searchParams.get("q") || "";
+  const searchParamsString = searchParams.toString();
+  // Gate user-derived values behind a mounted flag so the first client
+  // render matches the server render (where Clerk user data isn't available),
+  // avoiding a hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [activeItem, setActiveItem] = useState("All");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -65,6 +74,7 @@ export function DashboardSidebar({
   const [newWorkspaceName, setNewWorkspaceName] = useState("New Workspace");
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("New Project");
+  const [searchValue, setSearchValue] = useState(currentQuery);
   const [folders, setFolders] = useState<Array<{ id: string; name: string }>>(
     [],
   );
@@ -79,13 +89,18 @@ export function DashboardSidebar({
   const isScenePage = pathname?.startsWith("/dashboard/scene");
   const hideSidebar = isScenePage && sidebarCollapsed;
 
-  const workspaceName = user?.fullName
-    ? `${user.fullName}'s workspace`
-    : "My workspace";
+  const workspaceName =
+    mounted && user?.fullName
+      ? `${user.fullName}'s workspace`
+      : "My workspace";
 
-  const userInitial = user?.firstName?.[0] || user?.username?.[0] || "G";
-  const userEmail = user?.emailAddresses[0]?.emailAddress || "";
-  const userName = user?.fullName || user?.username || "User";
+  const userInitial = mounted
+    ? user?.firstName?.[0] || user?.username?.[0] || ""
+    : "";
+  const userEmail = mounted
+    ? user?.emailAddresses[0]?.emailAddress || ""
+    : "";
+  const userName = mounted ? user?.fullName || user?.username || "User" : "User";
 
   const navSections: NavSection[] = [
     {
@@ -118,6 +133,30 @@ export function DashboardSidebar({
 
     fetchFolders();
   }, []);
+
+  useEffect(() => {
+    setSearchValue(currentQuery);
+  }, [currentQuery]);
+
+  useEffect(() => {
+    const trimmed = searchValue.trim();
+    const timeout = window.setTimeout(() => {
+      const params = new URLSearchParams(searchParamsString);
+      if (trimmed.length >= 2) {
+        params.set("q", trimmed);
+      } else {
+        params.delete("q");
+      }
+      const nextParams = params.toString();
+      if (nextParams === searchParamsString) {
+        return;
+      }
+      const nextUrl = nextParams ? `${pathname}?${nextParams}` : pathname;
+      router.push(nextUrl);
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [searchValue, pathname, router, searchParamsString]);
 
   const handleCreateWorkspace = async () => {
     if (newWorkspaceName.trim()) {
@@ -228,117 +267,131 @@ export function DashboardSidebar({
             </div>
           ) : (
             // Expanded view
-            <div className="relative">
-              <button
-                ref={workspaceButtonRef}
-                onClick={() => setWorkspaceOpen(!workspaceOpen)}
-                className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary transition-colors"
-              >
-                {/* Avatar */}
-                <div className="w-8 h-8 rounded-lg bg-[#4ade80] flex items-center justify-center text-black font-semibold text-sm flex-shrink-0">
-                  {userInitial}
-                </div>
-                <div className="flex-1 text-left min-w-0">
-                  <div className="text-sm font-medium text-foreground truncate">
-                    {workspaceName.length > 20
-                      ? workspaceName.slice(0, 20) + "..."
-                      : workspaceName}
+            <>
+              <div className="relative">
+                <button
+                  ref={workspaceButtonRef}
+                  onClick={() => setWorkspaceOpen(!workspaceOpen)}
+                  className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary transition-colors"
+                >
+                  {/* Avatar */}
+                  <div className="w-8 h-8 rounded-lg bg-[#4ade80] flex items-center justify-center text-black font-semibold text-sm flex-shrink-0">
+                    {userInitial}
                   </div>
-                  <div className="text-xs text-muted-foreground">1 Member</div>
-                </div>
-                <ChevronsUpDown className="w-4 h-4" />
-              </button>
+                  <div className="flex-1 text-left min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">
+                      {workspaceName.length > 20
+                        ? workspaceName.slice(0, 20) + "..."
+                        : workspaceName}
+                    </div>
+                    <div className="text-xs text-muted-foreground">1 Member</div>
+                  </div>
+                  <ChevronsUpDown className="w-4 h-4" />
+                </button>
 
-              {/* Workspace Dropdown - rendered via portal */}
-              {workspaceOpen &&
-                typeof window !== "undefined" &&
-                createPortal(
-                  <>
-                    {/* Backdrop to close on outside click */}
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setWorkspaceOpen(false)}
-                    />
-                    {/* Dropdown content */}
-                    <div
-                      className="fixed bg-popover border border-border rounded-lg shadow-xl z-50 py-2"
-                      style={{
-                        top: `${dropdownPosition.top}px`,
-                        left: `${dropdownPosition.left}px`,
-                        width: `${dropdownPosition.width}px`,
-                        minWidth: "280px", // Ensure minimum width
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* User Info */}
-                      <div className="px-3 py-2 border-b border-border">
-                        <div className="flex items-center gap-3">
-                          {user?.imageUrl ? (
-                            <img
-                              src={user.imageUrl}
-                              alt="Profile"
-                              className="w-8 h-8 rounded-lg object-cover"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-lg bg-[#4ade80] flex items-center justify-center text-black font-semibold text-sm">
+                {/* Workspace Dropdown - rendered via portal */}
+                {workspaceOpen &&
+                  typeof window !== "undefined" &&
+                  createPortal(
+                    <>
+                      {/* Backdrop to close on outside click */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setWorkspaceOpen(false)}
+                      />
+                      {/* Dropdown content */}
+                      <div
+                        className="fixed bg-popover border border-border rounded-lg shadow-xl z-50 py-2"
+                        style={{
+                          top: `${dropdownPosition.top}px`,
+                          left: `${dropdownPosition.left}px`,
+                          width: `${dropdownPosition.width}px`,
+                          minWidth: "280px", // Ensure minimum width
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* User Info */}
+                        <div className="px-3 py-2 border-b border-border">
+                          <div className="flex items-center gap-3">
+                            {user?.imageUrl ? (
+                              <img
+                                src={user.imageUrl}
+                                alt="Profile"
+                                className="w-8 h-8 rounded-lg object-cover"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-[#4ade80] flex items-center justify-center text-black font-semibold text-sm">
+                                {userInitial}
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-foreground truncate">
+                                {user?.fullName || user?.username}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {userEmail.slice(0, 20)}
+                                {userEmail.length > 20 ? "..." : ""}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Workspaces */}
+                        <div className="px-2 py-2">
+                          <div className="text-xs text-muted-foreground px-2 mb-2">
+                            Workspaces
+                          </div>
+                          <button className="w-full flex items-center gap-3 p-2 rounded-md bg-accent hover:bg-accent/80 transition-colors">
+                            <div className="w-6 h-6 rounded bg-[#4ade80] flex items-center justify-center text-black font-semibold text-xs">
                               {userInitial}
                             </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-foreground truncate">
-                              {user?.fullName || user?.username}
+                            <div className="flex-1 text-left">
+                              <div className="text-sm text-foreground truncate">
+                                {workspaceName.length > 18
+                                  ? workspaceName.slice(0, 18) + "..."
+                                  : workspaceName}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Free · 1 member
+                              </div>
                             </div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              {userEmail.slice(0, 20)}
-                              {userEmail.length > 20 ? "..." : ""}
-                            </div>
-                          </div>
+                            <Check className="w-4 h-4 text-[#4ade80]" />
+                          </button>
+
+                          <button className="w-full flex items-center gap-2 p-2 mt-1 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground">
+                            <Plus className="w-4 h-4" />
+                            Create a new workspace
+                          </button>
+                        </div>
+
+                        {/* Logout */}
+                        <div className="border-t border-border px-2 pt-2 mt-2">
+                          <button
+                            onClick={() => signOut()}
+                            className="w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            Sign out
+                          </button>
                         </div>
                       </div>
-
-                      {/* Workspaces */}
-                      <div className="px-2 py-2">
-                        <div className="text-xs text-muted-foreground px-2 mb-2">
-                          Workspaces
-                        </div>
-                        <button className="w-full flex items-center gap-3 p-2 rounded-md bg-accent hover:bg-accent/80 transition-colors">
-                          <div className="w-6 h-6 rounded bg-[#4ade80] flex items-center justify-center text-black font-semibold text-xs">
-                            {userInitial}
-                          </div>
-                          <div className="flex-1 text-left">
-                            <div className="text-sm text-foreground truncate">
-                              {workspaceName.length > 18
-                                ? workspaceName.slice(0, 18) + "..."
-                                : workspaceName}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Free · 1 member
-                            </div>
-                          </div>
-                          <Check className="w-4 h-4 text-[#4ade80]" />
-                        </button>
-
-                        <button className="w-full flex items-center gap-2 p-2 mt-1 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground">
-                          <Plus className="w-4 h-4" />
-                          Create a new workspace
-                        </button>
-                      </div>
-
-                      {/* Logout */}
-                      <div className="border-t border-border px-2 pt-2 mt-2">
-                        <button
-                          onClick={() => signOut()}
-                          className="w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          Sign out
-                        </button>
-                      </div>
-                    </div>
-                  </>,
-                  document.body,
-                )}
-            </div>
+                    </>,
+                    document.body,
+                  )}
+              </div>
+              <div className="mt-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={searchValue}
+                    onChange={(event) => setSearchValue(event.target.value)}
+                    placeholder="Search scenes"
+                    className="w-full h-9 pl-10 pr-3 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-input transition-colors"
+                  />
+                </div>
+              </div>
+            </>
           )}
         </div>
 

@@ -5,14 +5,7 @@ import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSidebar } from "./SidebarContext";
 import { SidebarTrigger } from "./SidebarTrigger";
-import {
-  Search,
-  Users,
-  Plus,
-  LayoutGrid,
-  MoreHorizontal,
-  PencilLine,
-} from "lucide-react";
+import { Plus, LayoutGrid, MoreHorizontal, PencilLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SimpleInputModal } from "@/components/ui/simple-input-modal";
@@ -52,7 +45,6 @@ export function DashboardClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { sidebarCollapsed, setSidebarCollapsed } = useSidebar();
-  const [searchQuery, setSearchQuery] = useState("");
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("New Folder");
   const [newSceneDialogOpen, setNewSceneDialogOpen] = useState(false);
@@ -72,6 +64,9 @@ export function DashboardClient() {
 
   // Get folderId from URL params
   const selectedFolderId = searchParams.get("folderId");
+  const rawQuery = searchParams.get("q") || "";
+  const normalizedQuery = rawQuery.trim();
+  const hasSearch = normalizedQuery.length >= 2;
 
   const userName = user?.fullName || user?.username || "User";
 
@@ -106,9 +101,17 @@ export function DashboardClient() {
       try {
         setScenesLoading(true);
         setError(null);
-        const url = selectedFolderId
-          ? `/api/scenes?folderId=${selectedFolderId}`
-          : "/api/scenes";
+        const params = new URLSearchParams();
+        if (selectedFolderId) {
+          params.set("folderId", selectedFolderId);
+        }
+        if (hasSearch) {
+          params.set("q", normalizedQuery);
+          if (selectedFolderId) {
+            params.set("includeAll", "1");
+          }
+        }
+        const url = params.toString() ? `/api/scenes?${params.toString()}` : "/api/scenes";
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error("Failed to fetch scenes");
@@ -124,7 +127,7 @@ export function DashboardClient() {
     };
 
     fetchScenes();
-  }, [selectedFolderId]);
+  }, [selectedFolderId, hasSearch, normalizedQuery]);
 
   const handleCreateFolder = async () => {
     if (newFolderName.trim()) {
@@ -211,6 +214,15 @@ export function DashboardClient() {
   const scenesById = useMemo(() => {
     return new Map(scenes.map((scene) => [scene.id, scene]));
   }, [scenes]);
+
+  const inFolderScenes =
+    hasSearch && selectedFolderId
+      ? scenes.filter((scene) => scene.folderId === selectedFolderId)
+      : scenes;
+  const otherScenes =
+    hasSearch && selectedFolderId
+      ? scenes.filter((scene) => scene.folderId !== selectedFolderId)
+      : [];
 
   const openRenameDialog = (sceneId: string) => {
     const scene = scenesById.get(sceneId);
@@ -353,33 +365,8 @@ export function DashboardClient() {
           </h1>
         </div>
 
-        {/* Search Bar */}
-        <div className="flex-1 max-w-xl mx-8">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-10 pr-4 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-input transition-colors"
-            />
-          </div>
-        </div>
-
         {/* Right Actions */}
         <div className="flex items-center gap-3 min-w-[280px] justify-end">
-          <button className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <Users className="w-4 h-4" />
-            <span>1</span>
-          </button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            Invite
-          </Button>
           <Button
             size="sm"
             onClick={() => {
@@ -418,7 +405,68 @@ export function DashboardClient() {
             <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center mb-4">
               <LayoutGrid className="w-6 h-6 text-muted-foreground" />
             </div>
-            <p className="text-lg text-foreground">No scenes</p>
+            <p className="text-lg text-foreground">
+              {hasSearch ? `No results for "${normalizedQuery}"` : "No scenes"}
+            </p>
+          </div>
+        ) : hasSearch && selectedFolderId ? (
+          <div className="space-y-8">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-medium text-foreground">
+                  In this folder
+                </h2>
+                <span className="text-xs text-muted-foreground">
+                  {inFolderScenes.length} result{inFolderScenes.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              {inFolderScenes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No matches in this folder.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  {inFolderScenes.map((scene) => (
+                    <SceneCard
+                      key={scene.id}
+                      scene={scene}
+                      onRename={openRenameDialog}
+                      onDuplicate={handleDuplicate}
+                      onMove={openMoveDialog}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-medium text-foreground">
+                  Other scenes
+                </h2>
+                <span className="text-xs text-muted-foreground">
+                  {otherScenes.length} result{otherScenes.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              {otherScenes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No other matches.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  {otherScenes.map((scene) => (
+                    <SceneCard
+                      key={scene.id}
+                      scene={scene}
+                      onRename={openRenameDialog}
+                      onDuplicate={handleDuplicate}
+                      onMove={openMoveDialog}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           // Scenes Grid - 4 columns like Excalidraw reference

@@ -63,7 +63,7 @@ export function SceneCard({
       className="group cursor-pointer"
     >
       {/* Preview Container - aspect ratio matching Excalidraw reference */}
-      <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-[#121212] border border-border/50 group-hover:border-border transition-all">
+      <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-card border border-border/50 group-hover:border-border transition-all">
         {/* Scene Preview */}
         <ScenePreview 
           content={scene.content} 

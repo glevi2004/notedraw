@@ -17,6 +17,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
+    "db:backfill-search": "tsx scripts/backfill-search-text.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

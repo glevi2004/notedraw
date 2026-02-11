@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { put } from '@vercel/blob'
 import { getCurrentUser, canAccessFolder, canModifyFolder } from '@/lib/auth'
+import { buildSceneSearchText } from '@/lib/scene-search'
 import { db } from '@/lib/db'
 
 async function updateScene(
@@ -115,6 +116,15 @@ async function updateScene(
       content.files = files
     }
     updateData.content = content
+  }
+
+  if (title !== undefined || content !== undefined) {
+    const nextTitle = title !== undefined ? title : scene.title
+    const nextContent = content !== undefined ? content : scene.content
+    updateData.searchText = buildSceneSearchText({
+      title: nextTitle,
+      content: nextContent,
+    })
   }
   updateData.lastEditedBy = userId
   updateData.lastEditedAt = new Date()

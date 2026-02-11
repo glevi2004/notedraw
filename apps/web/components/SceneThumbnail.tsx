@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { exportToCanvas } from "@excalidraw/utils";
+import { useTheme } from "@/context/ThemeContext";
+import {
+  buildPreviewElements,
+  computePreviewPadding,
+  normalizeFilesForPreview,
+} from "./scene-preview-utils";
 
 interface SceneThumbnailProps {
   content: unknown; // Scene content from Prisma (Json type)
@@ -29,6 +35,7 @@ export function SceneThumbnail({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
+  const { theme } = useTheme();
 
   useEffect(() => {
     const renderThumbnail = async () => {
@@ -67,17 +74,37 @@ export function SceneThumbnail({
           return;
         }
 
+        const { elements: previewElements } = buildPreviewElements(
+          sceneData.elements as any[],
+          theme,
+        );
+        if (previewElements.length === 0) {
+          setIsEmpty(true);
+          setIsLoading(false);
+          return;
+        }
+
         // Render scene to canvas using Excalidraw's export utility
+        const exportPadding = computePreviewPadding(previewElements);
+        const viewBackgroundColor =
+          (sceneData.appState as any)?.viewBackgroundColor ||
+          (theme === "dark" ? "#0f1115" : "#ffffff");
+        const normalizedFiles = await normalizeFilesForPreview(
+          sceneData.files as any,
+          previewElements,
+        );
+
         const canvas = await exportToCanvas({
-          elements: sceneData.elements as any,
+          elements: previewElements as any,
           appState: {
             ...sceneData.appState,
             exportBackground: true,
-            viewBackgroundColor: "#ffffff",
+            exportWithDarkMode: theme === "dark",
+            viewBackgroundColor,
           } as any,
-          files: sceneData.files as any,
+          files: normalizedFiles as any,
           maxWidthOrHeight: 400, // Thumbnail size
-          exportPadding: 10,
+          exportPadding,
         });
 
         // Draw to the ref canvas
@@ -98,7 +125,7 @@ export function SceneThumbnail({
     };
 
     renderThumbnail();
-  }, [content]);
+  }, [content, theme]);
 
   // Apply custom width/height if provided
   const containerStyle: Record<string, string> = {};

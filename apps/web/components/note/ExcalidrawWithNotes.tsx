@@ -345,10 +345,46 @@ export function ExcalidrawWithNotes({
     const container = noteOverlayContainerRef.current;
     if (!container) return;
 
-    // Wheel handler: prevent default so the browser can't interpret
-    // horizontal deltaX as a back/forward navigation gesture.
     const handleWheel = (e: WheelEvent) => {
+      // If the wheel event originated from inside an editing note,
+      // let the note editor handle its own content scrolling.
+      const editingEl = (e.target as HTMLElement)?.closest?.(
+        ".note-editor-container",
+      );
+      if (editingEl) {
+        return;
+      }
+
+      // Prevent browser back/forward navigation on horizontal scroll.
       e.preventDefault();
+
+      // Forward the wheel event to Excalidraw's interactive canvas so
+      // canvas panning/zooming continues when scrolling over non-editing
+      // notes. Dispatching on the canvas ensures event.target is an
+      // HTMLCanvasElement, which passes Excalidraw's handleWheel guard.
+      const interactiveCanvas = container.parentElement?.querySelector(
+        "canvas.excalidraw__canvas.interactive",
+      );
+      if (interactiveCanvas) {
+        interactiveCanvas.dispatchEvent(
+          new WheelEvent("wheel", {
+            deltaX: e.deltaX,
+            deltaY: e.deltaY,
+            deltaZ: e.deltaZ,
+            deltaMode: e.deltaMode,
+            clientX: e.clientX,
+            clientY: e.clientY,
+            screenX: e.screenX,
+            screenY: e.screenY,
+            ctrlKey: e.ctrlKey,
+            altKey: e.altKey,
+            shiftKey: e.shiftKey,
+            metaKey: e.metaKey,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      }
     };
 
     container.addEventListener("wheel", handleWheel, { passive: false });
@@ -437,6 +473,11 @@ export function ExcalidrawWithNotes({
           inset: 0,
           pointerEvents: "none",
           overflow: "hidden",
+          // Creates a stacking context at z-index 2 (matching Excalidraw's
+          // own __note-container level). This keeps notes above the canvas
+          // layers (1-2) but below all UI elements: SVG layer, canvas
+          // buttons, WYSIWYG (all 3), and layer-ui/toolbar (4+).
+          zIndex: 2,
         }}
       >
       {appState &&

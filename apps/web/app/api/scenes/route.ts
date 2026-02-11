@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { getCurrentUser, canAccessFolder } from '@/lib/auth'
+import { buildSceneSearchText } from '@/lib/scene-search'
 import { db } from '@/lib/db'
 
 // GET: List scenes in folder (or all scenes if no folderId provided)
@@ -14,42 +15,29 @@ export async function GET(req: NextRequest) {
 
     const searchParams = req.nextUrl.searchParams
     const folderId = searchParams.get('folderId')
+    const queryRaw = searchParams.get('q') || ''
+    const query = queryRaw.trim()
+    const hasQuery = query.length >= 2
+    const includeAll =
+      searchParams.get('includeAll') === '1' ||
+      searchParams.get('includeAll') === 'true'
 
-    // If folderId is provided, return scenes from that folder only
-    if (folderId) {
-      // Check access to folder
-      const canAccess = await canAccessFolder(user.id, folderId)
-      if (!canAccess) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-      }
+    const searchFilter = hasQuery
+      ? {
+          OR: [
+            { title: { contains: query, mode: 'insensitive' } },
+            { searchText: { contains: query, mode: 'insensitive' } },
+          ],
+        }
+      : undefined
 
-      const scenes = await db.scene.findMany({
-        where: {
-          folderId,
-        },
-        orderBy: {
-          updatedAt: 'desc',
-        },
-        select: {
-          id: true,
-          title: true,
-          content: true,
-          folderId: true,
-          ownerId: true,
-          updatedAt: true,
-          lastEditedAt: true,
-          lastEditedBy: true,
-          createdAt: true,
-        },
-      })
-
-      // Fetch user names for lastEditedBy
+    const attachEditorNames = async (scenes: any[]) => {
       const scenesWithUserNames = await Promise.all(
         scenes.map(async (scene) => {
           if (!scene.lastEditedBy) {
             return { ...scene, lastEditedByName: null }
           }
-          
+
           const editor = await db.user.findUnique({
             where: { clerkId: scene.lastEditedBy },
             select: {
@@ -57,11 +45,11 @@ export async function GET(req: NextRequest) {
               lastName: true,
             },
           })
-          
+
           const name = editor
             ? `${editor.firstName || ''} ${editor.lastName || ''}`.trim() || null
             : null
-          
+
           return {
             ...scene,
             lastEditedByName: name,
@@ -69,7 +57,41 @@ export async function GET(req: NextRequest) {
         })
       )
 
-      return NextResponse.json(scenesWithUserNames)
+      return scenesWithUserNames
+    }
+
+    // If folderId is provided, return scenes from that folder only (unless includeAll)
+    if (folderId) {
+      // Check access to folder
+      const canAccess = await canAccessFolder(user.id, folderId)
+      if (!canAccess) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
+
+      if (!includeAll) {
+        const scenes = await db.scene.findMany({
+          where: {
+            folderId,
+            ...(searchFilter ? searchFilter : {}),
+          },
+          orderBy: {
+            updatedAt: 'desc',
+          },
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            folderId: true,
+            ownerId: true,
+            updatedAt: true,
+            lastEditedAt: true,
+            lastEditedBy: true,
+            createdAt: true,
+          },
+        })
+
+        return NextResponse.json(await attachEditorNames(scenes))
+      }
     }
 
     // If no folderId, return all scenes the user can access:
@@ -96,19 +118,20 @@ export async function GET(req: NextRequest) {
     })
 
     const folderIds = accessibleFolders.map((f) => f.id)
+    const accessFilter = {
+      OR: [
+        { folderId: null, ownerId: user.id },
+        ...(folderIds.length ? [{ folderId: { in: folderIds } }] : []),
+      ],
+    }
 
     // Get scenes: user's own folderless scenes OR scenes from accessible folders
     const scenes = await db.scene.findMany({
-      where: {
-        OR: [
-          { folderId: null, ownerId: user.id }, // Only user's own folderless scenes
-          {
-            folderId: {
-              in: folderIds,
-            },
-          },
-        ],
-      },
+      where: hasQuery && searchFilter
+        ? {
+            AND: [accessFilter, searchFilter],
+          }
+        : accessFilter,
       orderBy: {
         updatedAt: 'desc',
       },
@@ -125,33 +148,7 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    // Fetch user names for lastEditedBy
-    const scenesWithUserNames = await Promise.all(
-      scenes.map(async (scene) => {
-        if (!scene.lastEditedBy) {
-          return { ...scene, lastEditedByName: null }
-        }
-        
-        const editor = await db.user.findUnique({
-          where: { clerkId: scene.lastEditedBy },
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        })
-        
-        const name = editor
-          ? `${editor.firstName || ''} ${editor.lastName || ''}`.trim() || null
-          : null
-        
-        return {
-          ...scene,
-          lastEditedByName: name,
-        }
-      })
-    )
-
-    return NextResponse.json(scenesWithUserNames)
+    return NextResponse.json(await attachEditorNames(scenes))
   } catch (error) {
     console.error('Error fetching scenes:', error)
     return NextResponse.json(
@@ -199,6 +196,7 @@ export async function POST(req: NextRequest) {
         ownerId: user.id,
         folderId: folderId || null,
         content: content || null,
+        searchText: buildSceneSearchText({ title, content }),
         lastEditedBy: userId,
         lastEditedAt: new Date(),
       },
