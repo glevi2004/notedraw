@@ -49,7 +49,7 @@ export default function RootLayout({
           <script dangerouslySetInnerHTML={{ __html: themeScript }} />
           <script
             dangerouslySetInnerHTML={{
-              __html: 'window.EXCALIDRAW_ASSET_PATH = "/fonts/";',
+              __html: 'window.EXCALIDRAW_ASSET_PATH = "/";',
             }}
           />
         </head>

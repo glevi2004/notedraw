@@ -15,9 +15,17 @@ import { Commands, subsetToBinary } from "./subset-shared.chunk";
  *
  * `import.meta.url` is undefined in nodejs
  */
-export const WorkerUrl: URL | undefined = import.meta.url
-  ? new URL(import.meta.url)
-  : undefined;
+export const WorkerUrl: URL | undefined = (() => {
+  if (!import.meta.url) {
+    return undefined;
+  }
+  const url = new URL(import.meta.url);
+  // file:// URLs can't be loaded as workers from an http(s) origin (e.g. Turbopack dev)
+  if (url.protocol === "file:") {
+    return undefined;
+  }
+  return url;
+})();
 
 // run only in the worker context
 if (typeof window === "undefined" && typeof self !== "undefined") {
