@@ -13,7 +13,8 @@ import { CollabController, type CollabState } from "@/collab/CollabController";
 import { getCollaborationLinkData } from "@/collab/data";
 import { createShareSnapshot } from "@/collab/share";
 import { ShareDialog } from "@/components/share/ShareDialog";
-import { SceneAIProvider, useSceneAI, SceneChatInput, SceneAIPanel } from "@/components/ai";
+import { SceneAIProvider, useSceneAI, SceneChatInput, SceneChatBubble } from "@/components/ai";
+import { cn } from "@/lib/utils";
 
 // Dynamically import Excalidraw components to avoid SSR issues
 const ExcalidrawWithNotes = dynamic(
@@ -40,18 +41,44 @@ interface SceneEditorProps {
  * - No delay when leaving - saves are instant on exit
  */
 // Component for the AI button that uses the context
+// State machine: Input (default) -> Bubble -> Closed -> Input...
 function SceneAIButton() {
-  const { setShowAI } = useSceneAI();
+  const { showChatBubble, showInput, setShowInput, setShowChatBubble } = useSceneAI();
+  
+  const handleClick = () => {
+    if (showInput) {
+      // Input is open -> close input, open bubble
+      setShowInput(false);
+      setShowChatBubble(true);
+    } else if (showChatBubble) {
+      // Bubble is open -> close everything
+      setShowChatBubble(false);
+    } else {
+      // Nothing is open -> open input
+      setShowInput(true);
+    }
+  };
+  
+  // Determine button text based on state
+  // When nothing is open, clicking opens input -> show "Ask AI"
+  // When input is open, clicking opens bubble -> show "AI Chat"
+  // When bubble is open, clicking closes -> show "Ask AI"
+  const buttonText = showInput ? "AI Chat" : "Ask AI";
+  const isActive = showChatBubble || showInput;
   
   return (
     <button
-      className="help-icon"
+      className={cn(
+        "transition-colors relative z-50 flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card hover:bg-accent",
+        isActive && "text-violet-500 bg-violet-500/10 border-violet-500/30"
+      )}
       type="button"
-      title="Ask AI"
-      aria-label="Ask AI"
-      onClick={() => setShowAI(true)}
+      title={buttonText}
+      aria-label={buttonText}
+      onClick={handleClick}
     >
-      <Sparkles size={20} />
+      <span className="text-sm font-medium whitespace-nowrap">{buttonText}</span>
+      <Sparkles size={18} />
     </button>
   );
 }
@@ -350,12 +377,14 @@ function SceneEditorInner({
               </ExcalidrawWithNotes>
               {/* AI Chat Input - positioned relative to editor */}
               <SceneChatInput />
+              {/* AI Chat Bubble — overflow container prevents resize handles from causing scrollbars */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                <SceneChatBubble />
+              </div>
             </div>
           )}
         </div>
       </div>
-      {/* AI Panel - fixed on the right side */}
-      <SceneAIPanel />
     </>
   );
 }

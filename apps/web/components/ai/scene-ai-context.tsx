@@ -9,8 +9,10 @@ export interface ChatMessage {
 }
 
 interface SceneAIContextType {
-  showAI: boolean;
-  setShowAI: (show: boolean) => void;
+  showChatBubble: boolean;
+  setShowChatBubble: (show: boolean) => void;
+  showInput: boolean;
+  setShowInput: (show: boolean) => void;
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   inputValue: string;
@@ -18,8 +20,8 @@ interface SceneAIContextType {
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
   sendMessage: (message: string) => Promise<void>;
-  sidebarWidth: number;
-  setSidebarWidth: (width: number) => void;
+  openChat: () => void;
+  closeChat: () => void;
 }
 
 const SceneAIContext = createContext<SceneAIContextType | undefined>(undefined);
@@ -33,11 +35,22 @@ const aiSuggestions = [
 export { aiSuggestions };
 
 export function SceneAIProvider({ children }: { children: ReactNode }) {
-  const [showAI, setShowAI] = useState(false);
+  const [showChatBubble, setShowChatBubble] = useState(false);
+  const [showInput, setShowInput] = useState(true); // Show input by default on first load
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(320);
+
+  const openChat = useCallback(() => {
+    setShowInput(true);
+    setShowChatBubble(false);
+  }, []);
+
+  const closeChat = useCallback(() => {
+    setShowInput(false);
+    setShowChatBubble(false);
+    // Note: we don't reset hasSentMessage here - it persists for the session
+  }, []);
 
   const sendMessage = useCallback(async (message: string) => {
     if (!message.trim() || isLoading) return;
@@ -46,6 +59,10 @@ export function SceneAIProvider({ children }: { children: ReactNode }) {
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
+    
+    // Close input and show chat bubble after first message
+    setShowInput(false);
+    setShowChatBubble(true);
 
     // Add empty assistant message for streaming
     const assistantMessage: ChatMessage = { role: "assistant", content: "" };
@@ -155,8 +172,10 @@ export function SceneAIProvider({ children }: { children: ReactNode }) {
 
   return (
     <SceneAIContext.Provider value={{ 
-      showAI, 
-      setShowAI,
+      showChatBubble, 
+      setShowChatBubble,
+      showInput,
+      setShowInput,
       messages,
       setMessages,
       inputValue,
@@ -164,8 +183,8 @@ export function SceneAIProvider({ children }: { children: ReactNode }) {
       isLoading,
       setIsLoading,
       sendMessage,
-      sidebarWidth,
-      setSidebarWidth
+      openChat,
+      closeChat,
     }}>
       {children}
     </SceneAIContext.Provider>
