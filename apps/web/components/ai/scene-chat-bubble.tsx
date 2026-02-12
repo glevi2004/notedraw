@@ -50,6 +50,9 @@ export function SceneChatBubble() {
   const [isExpanded, setIsExpanded] = useState(false);
   const prevHeight = useRef(DEFAULT_HEIGHT);
 
+  // Keep a small margin from parent edges when auto-resizing so the bubble never gets clipped
+  const VIEWPORT_MARGIN = 16;
+
   const { bounds, setBounds, style, startDrag, startResize, reset, isDragging } =
     useFloatingPanel(panelRef, {
       minWidth: MIN_WIDTH,
@@ -94,14 +97,57 @@ export function SceneChatBubble() {
   };
 
   const toggleExpand = () => {
-    if (!isExpanded) {
-      prevHeight.current = bounds.height;
-      if (bounds.height < EXPANDED_HEIGHT) {
-        setBounds((b) => ({ ...b, height: EXPANDED_HEIGHT }));
+    const parent = panelRef.current?.parentElement;
+
+    // Fallback to previous behavior if parent cannot be measured
+    if (!parent) {
+      if (!isExpanded) {
+        prevHeight.current = bounds.height;
+        if (bounds.height < EXPANDED_HEIGHT) {
+          setBounds((b) => ({ ...b, height: EXPANDED_HEIGHT }));
+        }
+      } else {
+        setBounds((b) => ({ ...b, height: prevHeight.current }));
       }
-    } else {
-      setBounds((b) => ({ ...b, height: prevHeight.current }));
+      setIsExpanded(!isExpanded);
+      return;
     }
+
+    const parentHeight = parent.clientHeight;
+    const maxAllowedHeight = Math.max(
+      MIN_HEIGHT,
+      parentHeight - VIEWPORT_MARGIN * 2,
+    );
+
+    if (!isExpanded) {
+      // Store current height so we can restore on collapse
+      prevHeight.current = bounds.height;
+
+      // Target expanded height but never exceed available space
+      const nextHeight = Math.min(EXPANDED_HEIGHT, maxAllowedHeight);
+
+      // If the new height would overflow the bottom, shift upward
+      const overflow = bounds.y + nextHeight + VIEWPORT_MARGIN - parentHeight;
+      const nextY = overflow > 0 ? Math.max(VIEWPORT_MARGIN, bounds.y - overflow) : bounds.y;
+
+      setBounds((b) => ({ ...b, height: nextHeight, y: nextY }));
+    } else {
+      // Collapse back to previous height, clamped to available space, and
+      // re-anchor to the current bottom so the bubble drops back down if it
+      // was lifted to fit the expanded height.
+      const nextHeight = Math.min(prevHeight.current, maxAllowedHeight);
+
+      const currentBottom = bounds.y + bounds.height;
+      const desiredY = currentBottom - nextHeight;
+
+      const clampedY = Math.min(
+        Math.max(desiredY, VIEWPORT_MARGIN),
+        Math.max(VIEWPORT_MARGIN, parentHeight - nextHeight - VIEWPORT_MARGIN),
+      );
+
+      setBounds((b) => ({ ...b, height: nextHeight, y: clampedY }));
+    }
+
     setIsExpanded(!isExpanded);
   };
 
