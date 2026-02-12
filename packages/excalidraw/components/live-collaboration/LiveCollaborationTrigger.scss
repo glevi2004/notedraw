@@ -8,6 +8,11 @@
 
     --button-width: var(--lg-button-size);
     --button-height: var(--lg-button-size);
+    /* match other toolbar buttons (e.g., help) */
+    svg {
+      width: var(--lg-icon-size);
+      height: var(--lg-icon-size);
+    }
 
     --button-hover-bg: var(--color-primary-darker);
     --button-hover-border: var(--color-primary-darker);
