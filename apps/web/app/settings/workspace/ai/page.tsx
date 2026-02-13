@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 
 export default function WorkspaceAIPage() {
   const searchParams = useSearchParams();
   const workspaceId = searchParams.get("workspaceId");
   const [aiEnabled, setAiEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -17,19 +18,34 @@ export default function WorkspaceAIPage() {
       if (!response.ok) return;
       const data = (await response.json()) as { aiEnabled: boolean };
       setAiEnabled(data.aiEnabled);
+      setStatus(null);
     };
     run();
   }, [workspaceId]);
 
-  const save = async () => {
+  const updateAiEnabled = async (nextEnabled: boolean) => {
     if (!workspaceId) return;
+
+    const previousValue = aiEnabled;
+    setAiEnabled(nextEnabled);
     setSaving(true);
+    setStatus(null);
     try {
-      await fetch(`/api/workspaces/${workspaceId}`, {
+      const response = await fetch(`/api/workspaces/${workspaceId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aiEnabled }),
+        body: JSON.stringify({ aiEnabled: nextEnabled }),
       });
+      if (!response.ok) {
+        throw new Error("Failed to update AI setting");
+      }
+      const updated = (await response.json()) as { aiEnabled: boolean };
+      setAiEnabled(updated.aiEnabled);
+      setStatus(updated.aiEnabled ? "AI enabled" : "AI disabled");
+    } catch (error) {
+      console.error("Error updating AI setting:", error);
+      setAiEnabled(previousValue);
+      setStatus("Failed to update AI setting");
     } finally {
       setSaving(false);
     }
@@ -52,24 +68,25 @@ export default function WorkspaceAIPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-4">
-        <label className="flex items-center justify-between gap-4">
+      <section className="border-t border-border pt-6 space-y-4">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-foreground">Enable AI features</p>
             <p className="text-xs text-muted-foreground mt-1">
               Disable this to block AI generation and chat features for all members.
             </p>
           </div>
-          <input
-            type="checkbox"
+          <Switch
             checked={aiEnabled}
-            onChange={(event) => setAiEnabled(event.target.checked)}
-            className="h-4 w-4"
+            onCheckedChange={(checked) => {
+              if (checked === aiEnabled || saving) return;
+              void updateAiEnabled(checked);
+            }}
+            disabled={saving}
+            aria-label="Toggle workspace AI features"
           />
-        </label>
-        <Button onClick={save} disabled={saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
+        </div>
+        {status ? <p className="text-xs text-muted-foreground">{status}</p> : null}
       </section>
     </div>
   );

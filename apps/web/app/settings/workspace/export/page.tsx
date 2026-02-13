@@ -54,14 +54,14 @@ export default function WorkspaceExportPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-3">
+      <section className="border-t border-border pt-6 space-y-3">
         <Button onClick={trigger}>Export workspace to ZIP</Button>
         <p className="text-xs text-muted-foreground">
           Export job queue is implemented; archive generation will be wired next.
         </p>
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-3">
+      <section className="border-t border-border pt-6 space-y-3">
         <h2 className="text-lg font-medium text-foreground">Export history</h2>
         {jobs.length === 0 ? (
           <p className="text-sm text-muted-foreground">No exports yet.</p>

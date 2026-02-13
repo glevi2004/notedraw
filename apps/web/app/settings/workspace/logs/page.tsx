@@ -57,7 +57,7 @@ export default function WorkspaceLogsPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-4">
+      <section className="border-t border-border pt-6 space-y-4">
         <div className="max-w-sm space-y-2">
           <label className="text-sm font-medium text-foreground">Filter by action</label>
           <Input

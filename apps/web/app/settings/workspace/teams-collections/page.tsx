@@ -88,7 +88,7 @@ export default function TeamsCollectionsPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-4">
+      <section className="border-t border-border pt-6 space-y-4">
         <h2 className="text-lg font-medium text-foreground">Create team</h2>
         <div className="flex flex-wrap gap-2">
           <Input
@@ -100,7 +100,7 @@ export default function TeamsCollectionsPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-3">
+      <section className="border-t border-border pt-6 space-y-3">
         <h2 className="text-lg font-medium text-foreground">Teams</h2>
         {teams.length === 0 ? (
           <p className="text-sm text-muted-foreground">No teams yet.</p>
@@ -123,7 +123,7 @@ export default function TeamsCollectionsPage() {
         )}
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-3">
+      <section className="border-t border-border pt-6 space-y-3">
         <h2 className="text-lg font-medium text-foreground">Collections</h2>
         {collections.length === 0 ? (
           <p className="text-sm text-muted-foreground">No collections yet.</p>

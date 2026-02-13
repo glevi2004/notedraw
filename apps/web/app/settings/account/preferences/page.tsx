@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Save as SaveIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -58,7 +59,7 @@ export default function PreferencesSettingsPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-4">
+      <section className="border-t border-border pt-6 space-y-4">
         <div>
           <p className="text-sm font-medium text-foreground">Theme</p>
           <p className="text-xs text-muted-foreground mt-1">
@@ -89,6 +90,7 @@ export default function PreferencesSettingsPage() {
 
         <div className="flex items-center gap-3">
           <Button onClick={save} disabled={saving}>
+            <SaveIcon className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save preferences"}
           </Button>
           {status ? <span className="text-sm text-muted-foreground">{status}</span> : null}

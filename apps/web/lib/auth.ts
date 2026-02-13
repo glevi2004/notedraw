@@ -3,53 +3,6 @@ import { db } from "./db";
 
 export type WorkspaceRoleValue = "VIEWER" | "MEMBER" | "ADMIN";
 
-function deriveWorkspaceName(args: {
-  firstName?: string | null;
-  lastName?: string | null;
-  email?: string | null;
-}) {
-  const display =
-    args.firstName ||
-    args.lastName ||
-    args.email?.split("@")[0] ||
-    "My";
-  return `${display}'s Workspace`;
-}
-
-/**
- * Ensure a user has at least one workspace where they are ADMIN.
- * Returns the workspace id (existing or newly created).
- */
-export async function ensureDefaultWorkspaceForUser(
-  userId: string,
-  workspaceName: string,
-) {
-  const existingMembership = await db.workspaceMember.findFirst({
-    where: { userId },
-    select: { workspaceId: true },
-  });
-
-  if (existingMembership) {
-    return existingMembership.workspaceId;
-  }
-
-  const createdWorkspace = await db.workspace.create({
-    data: {
-      name: workspaceName,
-      createdById: userId,
-      members: {
-        create: {
-          userId,
-          role: "ADMIN",
-        },
-      },
-    },
-    select: { id: true },
-  });
-
-  return createdWorkspace.id;
-}
-
 /**
  * Get the current authenticated user from Clerk and sync with database.
  */
@@ -65,14 +18,6 @@ export async function getCurrentUser() {
 export async function ensureUserExists(clerkId: string) {
   const existing = await db.user.findUnique({ where: { clerkId } });
   if (existing) {
-    await ensureDefaultWorkspaceForUser(
-      existing.id,
-      deriveWorkspaceName({
-        firstName: existing.firstName,
-        lastName: existing.lastName,
-        email: existing.email,
-      }),
-    );
     return existing;
   }
 
@@ -91,22 +36,21 @@ export async function ensureUserExists(clerkId: string) {
     },
   });
 
-  await ensureDefaultWorkspaceForUser(
-    user.id,
-    deriveWorkspaceName({
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-    }),
-  );
-
   return user;
+}
+
+export async function hasWorkspaceMembership(userId: string) {
+  const membership = await db.workspaceMember.findFirst({
+    where: { userId },
+    select: { workspaceId: true },
+  });
+  return Boolean(membership);
 }
 
 /**
  * Resolve which workspace should be active for the user.
  * If requested workspace is accessible, it is returned.
- * Otherwise it falls back to earliest membership, creating a default workspace if needed.
+ * Otherwise it falls back to earliest membership.
  */
 export async function resolveActiveWorkspaceId(
   userId: string,
@@ -137,23 +81,7 @@ export async function resolveActiveWorkspaceId(
     return firstMembership.workspaceId;
   }
 
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { firstName: true, lastName: true, email: true },
-  });
-
-  if (!user) {
-    return null;
-  }
-
-  return ensureDefaultWorkspaceForUser(
-    userId,
-    deriveWorkspaceName({
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-    }),
-  );
+  return null;
 }
 
 export async function getUserWorkspaceRole(

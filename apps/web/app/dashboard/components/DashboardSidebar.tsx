@@ -18,10 +18,11 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { useUser, useClerk } from "@clerk/nextjs";
+import { useClerk } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import { SimpleInputModal } from "@/components/ui/simple-input-modal";
 import { useTheme } from "@/context/ThemeContext";
+import { useSidebarData, type SidebarWorkspace } from "@/context/SidebarDataContext";
 import { SceneSidebarList } from "../scene/[id]/SceneSidebarList";
 import {
   DropdownMenu,
@@ -31,12 +32,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-interface WorkspaceItem {
-  id: string;
-  name: string;
-  role?: "VIEWER" | "MEMBER" | "ADMIN" | null;
-}
 
 interface CollectionItem {
   id: string;
@@ -52,6 +47,54 @@ function getInitials(name: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function SidebarAvatar({
+  name,
+  imageUrl,
+  sizeClass = "w-8 h-8",
+  roundedClass = "rounded-lg",
+  fallbackClassName = "bg-secondary text-foreground",
+}: {
+  name: string;
+  imageUrl?: string | null;
+  sizeClass?: string;
+  roundedClass?: string;
+  fallbackClassName?: string;
+}) {
+  const [imageErrored, setImageErrored] = useState(false);
+
+  useEffect(() => {
+    setImageErrored(false);
+  }, [imageUrl]);
+
+  return (
+    <div
+      className={cn(
+        "overflow-hidden flex items-center justify-center text-xs font-semibold flex-shrink-0",
+        sizeClass,
+        roundedClass,
+      )}
+    >
+      {imageUrl && !imageErrored ? (
+        <img
+          src={imageUrl}
+          alt={`${name} avatar`}
+          className="w-full h-full object-cover"
+          onError={() => setImageErrored(true)}
+        />
+      ) : (
+        <div
+          className={cn(
+            "w-full h-full flex items-center justify-center",
+            fallbackClassName,
+          )}
+        >
+          {getInitials(name)}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function DashboardSidebar({
@@ -71,9 +114,15 @@ export function DashboardSidebar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { user } = useUser();
   const { signOut } = useClerk();
   const { theme, setTheme } = useTheme();
+  const {
+    workspaces,
+    refreshWorkspaces,
+    userName,
+    userEmail,
+    userImageUrl,
+  } = useSidebarData();
 
   const currentWorkspaceId = searchParams.get("workspaceId");
   const currentCollectionId = searchParams.get("collectionId");
@@ -81,11 +130,9 @@ export function DashboardSidebar({
   const isSettingsMode = mode === "settings";
   const isScenePage = !isSettingsMode && pathname?.startsWith("/dashboard/scene");
 
-  const [mounted, setMounted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchValue, setSearchValue] = useState(currentQuery);
 
-  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
   const [collections, setCollections] = useState<CollectionItem[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(
     currentWorkspaceId,
@@ -96,28 +143,9 @@ export function DashboardSidebar({
   const [newCollectionDialogOpen, setNewCollectionDialogOpen] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("New Collection");
 
-  useEffect(() => setMounted(true), []);
-
   useEffect(() => {
     setSearchValue(currentQuery);
   }, [currentQuery]);
-
-  useEffect(() => {
-    const fetchWorkspaces = async () => {
-      try {
-        const response = await fetch("/api/workspaces");
-        if (!response.ok) {
-          throw new Error("Failed to fetch workspaces");
-        }
-        const data = (await response.json()) as WorkspaceItem[];
-        setWorkspaces(data);
-      } catch (error) {
-        console.error("Error fetching workspaces:", error);
-      }
-    };
-
-    fetchWorkspaces();
-  }, []);
 
   useEffect(() => {
     if (!workspaces.length) return;
@@ -220,11 +248,8 @@ export function DashboardSidebar({
     [workspaces, activeWorkspaceId],
   );
 
-  const userName = mounted ? user?.fullName || user?.username || "User" : "User";
-  const userEmail = mounted ? user?.emailAddresses[0]?.emailAddress || "" : "";
   const workspaceLabel = activeWorkspace?.name || "Workspace";
-  const workspaceInitials = getInitials(workspaceLabel);
-  const userInitials = getInitials(userName);
+  const workspaceImageUrl = activeWorkspace?.logoUrl || null;
   const hideSidebar = isScenePage && sidebarCollapsed;
 
   const goToDashboard = () => {
@@ -273,10 +298,10 @@ export function DashboardSidebar({
       if (!response.ok) {
         throw new Error("Failed to create workspace");
       }
-      const created = (await response.json()) as WorkspaceItem;
-      setWorkspaces((prev) => [created, ...prev]);
+      const created = (await response.json()) as SidebarWorkspace;
       setNewWorkspaceDialogOpen(false);
       setNewWorkspaceName("New Workspace");
+      await refreshWorkspaces({ force: true });
       selectWorkspace(created.id);
     } catch (error) {
       console.error("Error creating workspace:", error);
@@ -308,7 +333,7 @@ export function DashboardSidebar({
   };
 
   return (
-    <div className="flex h-screen w-full bg-background">
+    <div className="flex h-screen w-full overflow-hidden bg-background">
       <aside
         className={cn(
           "flex-shrink-0 bg-card border-r border-border flex flex-col transition-all duration-300",
@@ -323,7 +348,7 @@ export function DashboardSidebar({
         <div className="p-3 border-b border-border">
           {sidebarCollapsed ? (
             <button
-              className="w-8 h-8 rounded-lg bg-emerald-400/90 text-black text-xs font-semibold mx-auto"
+              className="mx-auto"
               onClick={() => {
                 if (isSettingsMode) {
                   goToDashboard();
@@ -333,7 +358,11 @@ export function DashboardSidebar({
               }}
               title={workspaceLabel}
             >
-              {workspaceInitials}
+              <SidebarAvatar
+                name={workspaceLabel}
+                imageUrl={workspaceImageUrl}
+                fallbackClassName="bg-emerald-400/90 text-black"
+              />
             </button>
           ) : (
             <>
@@ -343,9 +372,11 @@ export function DashboardSidebar({
                   className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary transition-colors"
                   title="Back to dashboard"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-emerald-400/90 text-black flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                    {workspaceInitials}
-                  </div>
+                  <SidebarAvatar
+                    name={workspaceLabel}
+                    imageUrl={workspaceImageUrl}
+                    fallbackClassName="bg-emerald-400/90 text-black"
+                  />
                   <div className="min-w-0 flex-1 text-left">
                     <div className="text-sm font-medium text-foreground truncate">
                       {workspaceLabel}
@@ -360,9 +391,11 @@ export function DashboardSidebar({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary transition-colors">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-400/90 text-black flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                          {workspaceInitials}
-                        </div>
+                        <SidebarAvatar
+                          name={workspaceLabel}
+                          imageUrl={workspaceImageUrl}
+                          fallbackClassName="bg-emerald-400/90 text-black"
+                        />
                         <div className="min-w-0 flex-1 text-left">
                           <div className="text-sm font-medium text-foreground truncate">
                             {workspaceLabel}
@@ -420,6 +453,12 @@ export function DashboardSidebar({
                           onClick={() => selectWorkspace(workspace.id)}
                           className="flex items-center gap-2"
                         >
+                          <SidebarAvatar
+                            name={workspace.name}
+                            imageUrl={workspace.logoUrl}
+                            sizeClass="w-5 h-5"
+                            roundedClass="rounded-md"
+                          />
                           <span className="truncate">{workspace.name}</span>
                           {activeWorkspaceId === workspace.id ? (
                             <Check className="w-4 h-4 ml-auto text-emerald-500" />
@@ -512,12 +551,13 @@ export function DashboardSidebar({
         <div className="border-t border-border p-3">
           {sidebarCollapsed ? (
             <div className="flex flex-col items-center gap-2">
-              <button
-                className="w-8 h-8 rounded-lg bg-secondary text-foreground text-xs font-semibold"
-                title={userName}
-              >
-                {userInitials}
-              </button>
+              <div title={userName}>
+                <SidebarAvatar
+                  name={userName}
+                  imageUrl={userImageUrl}
+                  roundedClass="rounded-full"
+                />
+              </div>
               <button
                 className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground"
                 onClick={() => signOut()}
@@ -529,9 +569,11 @@ export function DashboardSidebar({
           ) : (
             <div className="rounded-lg border border-border p-2.5 bg-background/70">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-secondary text-foreground text-xs font-semibold flex items-center justify-center">
-                  {userInitials}
-                </div>
+                <SidebarAvatar
+                  name={userName}
+                  imageUrl={userImageUrl}
+                  roundedClass="rounded-full"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-foreground truncate">
                     {userName}
@@ -602,8 +644,8 @@ export function DashboardSidebar({
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0">
-        <div className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex min-h-0 min-w-0 flex-col">
+        <div className="flex-1 flex min-h-0 min-w-0 flex-col">
           {typeof children === "function"
             ? children({ sidebarCollapsed, setSidebarCollapsed })
             : children}

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Save as SaveIcon, Upload as UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { notifyWorkspaceVisualsUpdated } from "@/lib/sidebar-sync";
 
 interface WorkspacePayload {
   id: string;
@@ -15,9 +17,9 @@ interface WorkspacePayload {
 export default function WorkspaceSettingsPage() {
   const searchParams = useSearchParams();
   const workspaceId = searchParams.get("workspaceId");
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [workspace, setWorkspace] = useState<WorkspacePayload | null>(null);
   const [name, setName] = useState("");
-  const [selectedLogoFile, setSelectedLogoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export default function WorkspaceSettingsPage() {
       const updated = (await response.json()) as WorkspacePayload;
       setWorkspace(updated);
       setStatus("Workspace updated");
+      notifyWorkspaceVisualsUpdated(workspaceId);
     } catch (error) {
       console.error(error);
       setStatus("Failed to update workspace");
@@ -58,14 +61,14 @@ export default function WorkspaceSettingsPage() {
     }
   };
 
-  const uploadLogo = async () => {
-    if (!workspaceId || !selectedLogoFile) return;
+  const uploadLogo = async (file: File) => {
+    if (!workspaceId) return;
 
     setUploadingLogo(true);
     setStatus(null);
     try {
       const formData = new FormData();
-      formData.append("file", selectedLogoFile);
+      formData.append("file", file);
 
       const response = await fetch(`/api/workspaces/${workspaceId}/logo`, {
         method: "POST",
@@ -77,8 +80,8 @@ export default function WorkspaceSettingsPage() {
 
       const updated = (await response.json()) as Pick<WorkspacePayload, "id" | "logoUrl">;
       setWorkspace((prev) => (prev ? { ...prev, logoUrl: updated.logoUrl } : prev));
-      setSelectedLogoFile(null);
       setStatus("Workspace logo updated");
+      notifyWorkspaceVisualsUpdated(workspaceId);
     } catch (error) {
       console.error(error);
       setStatus("Failed to upload workspace logo");
@@ -101,8 +104,8 @@ export default function WorkspaceSettingsPage() {
       }
       const updated = (await response.json()) as Pick<WorkspacePayload, "id" | "logoUrl">;
       setWorkspace((prev) => (prev ? { ...prev, logoUrl: updated.logoUrl } : prev));
-      setSelectedLogoFile(null);
       setStatus("Workspace logo removed");
+      notifyWorkspaceVisualsUpdated(workspaceId);
     } catch (error) {
       console.error(error);
       setStatus("Failed to remove workspace logo");
@@ -128,7 +131,7 @@ export default function WorkspaceSettingsPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-5">
+      <section className="border-t border-border pt-6 space-y-5">
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">Workspace logo</label>
           <div className="flex flex-wrap items-center gap-3">
@@ -144,19 +147,25 @@ export default function WorkspaceSettingsPage() {
               )}
             </div>
             <input
+              ref={logoInputRef}
               type="file"
               accept="image/*"
-              onChange={(event) =>
-                setSelectedLogoFile(event.target.files?.[0] || null)
-              }
-              className="text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border file:border-border file:bg-background file:text-foreground"
+              className="hidden"
+              onChange={async (event) => {
+                const input = event.currentTarget;
+                const file = input.files?.[0];
+                if (!file) return;
+                await uploadLogo(file);
+                input.value = "";
+              }}
             />
             <Button
               type="button"
               variant="secondary"
-              onClick={uploadLogo}
-              disabled={!selectedLogoFile || uploadingLogo}
+              onClick={() => logoInputRef.current?.click()}
+              disabled={uploadingLogo}
             >
+              <UploadIcon className="w-4 h-4 mr-2" />
               {uploadingLogo ? "Uploading..." : "Upload logo"}
             </Button>
             {workspace?.logoUrl ? (
@@ -181,6 +190,7 @@ export default function WorkspaceSettingsPage() {
         </div>
         <div className="flex items-center gap-3">
           <Button onClick={save} disabled={saving || !workspace}>
+            <SaveIcon className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save changes"}
           </Button>
           {status ? <span className="text-sm text-muted-foreground">{status}</span> : null}

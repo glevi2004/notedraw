@@ -124,7 +124,7 @@ export default function WorkspaceMembersPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-4">
+      <section className="border-t border-border pt-6 space-y-4">
         <h2 className="text-lg font-medium text-foreground">Invite user</h2>
         <div className="flex flex-wrap gap-2">
           <Input
@@ -180,7 +180,7 @@ export default function WorkspaceMembersPage() {
         ) : null}
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-3">
+      <section className="border-t border-border pt-6 space-y-3">
         <h2 className="text-lg font-medium text-foreground">
           Pending invitations ({invitations.length})
         </h2>
@@ -204,7 +204,7 @@ export default function WorkspaceMembersPage() {
         )}
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-3">
+      <section className="border-t border-border pt-6 space-y-3">
         <h2 className="text-lg font-medium text-foreground">Members ({members.length})</h2>
         <div className="space-y-2">
           {members.map((member) => {

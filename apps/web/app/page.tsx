@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
+import { getCurrentUser, hasWorkspaceMembership } from '@/lib/auth';
 import Navigation from '@/sections/Navigation';
 import Hero from '@/sections/Hero';
 import DesktopEditorDemo from '@/sections/DesktopEditorDemo';
@@ -18,7 +19,13 @@ export default async function LandingPage({ searchParams }: PageProps) {
   const forceLanding = searchParams?.landing === 'true';
 
   if (userId && !forceLanding) {
-    redirect('/dashboard');
+    const user = await getCurrentUser();
+    if (!user) {
+      redirect('/');
+    }
+
+    const isOnboarded = await hasWorkspaceMembership(user.id);
+    redirect(isOnboarded ? '/dashboard' : '/onboarding');
   }
 
   return (

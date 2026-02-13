@@ -2,20 +2,6 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { WebhookEvent } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { ensureDefaultWorkspaceForUser } from "@/lib/auth";
-
-function deriveWorkspaceName(args: {
-  firstName?: string | null;
-  lastName?: string | null;
-  email?: string | null;
-}) {
-  const display =
-    args.firstName ||
-    args.lastName ||
-    args.email?.split("@")[0] ||
-    "My";
-  return `${display}'s Workspace`;
-}
 
 export async function POST(req: Request) {
   const headerPayload = await headers();
@@ -52,7 +38,7 @@ export async function POST(req: Request) {
     const email = email_addresses[0]?.email_address || null;
 
     try {
-      const user = await db.user.create({
+      await db.user.create({
         data: {
           clerkId: id,
           email,
@@ -61,15 +47,6 @@ export async function POST(req: Request) {
           imageUrl: image_url || null,
         },
       });
-
-      await ensureDefaultWorkspaceForUser(
-        user.id,
-        deriveWorkspaceName({
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-        }),
-      );
     } catch (error) {
       console.error("Error creating user:", error);
       return new Response("Error creating user", { status: 500 });
@@ -81,7 +58,7 @@ export async function POST(req: Request) {
     const email = email_addresses[0]?.email_address || null;
 
     try {
-      const user = await db.user.upsert({
+      await db.user.upsert({
         where: { clerkId: id },
         create: {
           clerkId: id,
@@ -97,15 +74,6 @@ export async function POST(req: Request) {
           imageUrl: image_url || null,
         },
       });
-
-      await ensureDefaultWorkspaceForUser(
-        user.id,
-        deriveWorkspaceName({
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-        }),
-      );
     } catch (error) {
       console.error("Error updating user:", error);
       return new Response("Error updating user", { status: 500 });

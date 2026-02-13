@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { SidebarDataProvider } from "@/context/SidebarDataContext";
 
 export const metadata: Metadata = {
   title: "Notedraw - Unified Drawing and Notes Workspace",
@@ -42,7 +43,7 @@ export default function RootLayout({
   return (
     <ClerkProvider
       signInFallbackRedirectUrl="/dashboard"
-      signUpFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/onboarding"
     >
       <html lang="en" suppressHydrationWarning>
         <head>
@@ -54,7 +55,9 @@ export default function RootLayout({
           />
         </head>
         <body>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <SidebarDataProvider>{children}</SidebarDataProvider>
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

@@ -56,7 +56,7 @@ export default function WorkspaceImportPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-3">
+      <section className="border-t border-border pt-6 space-y-3">
         <div className="max-w-sm space-y-2">
           <label className="text-sm font-medium text-foreground">Source name</label>
           <Input value={sourceName} onChange={(event) => setSourceName(event.target.value)} />
@@ -64,7 +64,7 @@ export default function WorkspaceImportPage() {
         <Button onClick={trigger}>Queue import</Button>
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-6 space-y-3">
+      <section className="border-t border-border pt-6 space-y-3">
         <h2 className="text-lg font-medium text-foreground">Import history</h2>
         {jobs.length === 0 ? (
           <p className="text-sm text-muted-foreground">No imports yet.</p>
