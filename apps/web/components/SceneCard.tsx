@@ -17,6 +17,8 @@ interface SceneCardProps {
     id: string;
     title: string;
     content?: unknown;
+    workspaceId: string;
+    collectionId?: string | null;
     updatedAt: string;
     lastEditedByName?: string | null;
     lastEditedAt?: string;
@@ -54,7 +56,7 @@ export function SceneCard({
     : "Unknown";
 
   const handleClick = () => {
-    router.push(`/dashboard/scene/${scene.id}`);
+    router.push(`/dashboard/scene/${scene.id}?workspaceId=${scene.workspaceId}`);
   };
 
   return (
@@ -130,7 +132,7 @@ export function SceneCard({
         </div>
         
         {/* Lock Icon - Show for personal scenes (no folder) */}
-        {!scene.folderId && (
+        {!((scene.collectionId ?? scene.folderId) || null) && (
           <div className="ml-2 flex-shrink-0 mt-0.5">
             <Lock className="w-4 h-4 text-muted-foreground/50" />
           </div>

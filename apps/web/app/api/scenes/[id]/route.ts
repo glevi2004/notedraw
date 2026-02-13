@@ -1,268 +1,244 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
-import { put } from '@vercel/blob'
-import { getCurrentUser, canAccessFolder, canModifyFolder } from '@/lib/auth'
-import { buildSceneSearchText } from '@/lib/scene-search'
-import { db } from '@/lib/db'
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { put } from "@vercel/blob";
+import { Prisma } from "@/generated/prisma";
+import {
+  canAccessCollection,
+  canAccessScene,
+  canEditCollection,
+  canEditScene,
+  getCurrentUser,
+} from "@/lib/auth";
+import { buildSceneSearchText } from "@/lib/scene-search";
+import { db } from "@/lib/db";
 
 async function updateScene(
   req: NextRequest,
   params: Promise<{ id: string }>,
 ) {
-  const { id } = await params
-  const { userId } = await auth()
+  const { id } = await params;
+  const { userId: clerkUserId } = await auth();
 
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!clerkUserId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const user = await getCurrentUser()
+  const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const scene = await db.scene.findUnique({
     where: { id },
-    include: { folder: true },
-  })
+  });
 
   if (!scene) {
-    return NextResponse.json({ error: 'Scene not found' }, { status: 404 })
+    return NextResponse.json({ error: "Scene not found" }, { status: 404 });
   }
 
-  // Check modify access
-  if (scene.folderId) {
-    const canModify = await canModifyFolder(user.id, scene.folderId)
-    if (!canModify) {
-      return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
-    }
-  } else if (scene.ownerId !== user.id) {
-    return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+  const canEdit = await canEditScene(user.id, scene.id);
+  if (!canEdit) {
+    return NextResponse.json({ error: "Permission denied" }, { status: 403 });
   }
 
-  const body = await req.json()
-  const { title, content, folderId } = body
+  const body = await req.json();
+  const {
+    title,
+    content,
+    collectionId,
+    folderId,
+  } = body as {
+    title?: string;
+    content?: any;
+    collectionId?: string | null;
+    folderId?: string | null;
+  };
 
-  const updateData: {
-    title?: string
-    content?: any
-    folderId?: string | null
-    lastEditedBy?: string
-    lastEditedAt?: Date
-  } = {}
+  const updateData: Prisma.SceneUpdateInput = {};
 
-  if (folderId !== undefined && folderId !== scene.folderId) {
-    if (folderId === null) {
-      if (scene.ownerId !== user.id) {
-        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
-      }
+  const effectiveCollectionId = collectionId !== undefined ? collectionId : folderId;
+
+  if (effectiveCollectionId !== undefined && effectiveCollectionId !== scene.collectionId) {
+    if (effectiveCollectionId === null) {
+      updateData.collection = { disconnect: true };
     } else {
-      const canModifyTarget = await canModifyFolder(user.id, folderId)
-      if (!canModifyTarget) {
-        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+      const targetCollection = await db.collection.findUnique({
+        where: { id: effectiveCollectionId },
+        select: { workspaceId: true },
+      });
+      if (!targetCollection || targetCollection.workspaceId !== scene.workspaceId) {
+        return NextResponse.json({ error: "Collection not found" }, { status: 404 });
       }
+
+      const canEditTarget = await canEditCollection(user.id, effectiveCollectionId);
+      if (!canEditTarget) {
+        return NextResponse.json({ error: "Permission denied" }, { status: 403 });
+      }
+
+      updateData.collection = { connect: { id: effectiveCollectionId } };
     }
-    updateData.folderId = folderId
   }
 
-  if (title !== undefined) updateData.title = title
+  if (title !== undefined) {
+    if (!title.trim()) {
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    }
+    updateData.title = title.trim();
+  }
+
+  let nextContent = scene.content;
   if (content !== undefined) {
-    // Upload binary files to Vercel Blob and replace dataURLs with URLs
-    if (content?.files && typeof content.files === 'object') {
-      const files = content.files as Record<string, any>
+    if (content?.files && typeof content.files === "object") {
+      const files = content.files as Record<string, any>;
       for (const [fileId, file] of Object.entries(files)) {
-        if (!file || typeof file !== 'object') continue
+        if (!file || typeof file !== "object") continue;
+        const dataURL = file.dataURL;
+        if (typeof dataURL !== "string") continue;
+        if (/^https?:\/\//.test(dataURL)) continue;
 
-        const dataURL = file.dataURL
-        if (typeof dataURL !== 'string') continue
-
-        // Already normalized to a remote URL – keep as-is
-        if (/^https?:\/\//.test(dataURL)) continue
-
-        if (dataURL.startsWith('data:')) {
+        if (dataURL.startsWith("data:")) {
           const ext =
-            file.mimeType && typeof file.mimeType === 'string'
-              ? file.mimeType.split('/')[1] || 'bin'
-              : 'bin'
-          const filename = `scenes/${id}/${fileId}.${ext}`
+            file.mimeType && typeof file.mimeType === "string"
+              ? file.mimeType.split("/")[1] || "bin"
+              : "bin";
+          const filename = `scenes/${id}/${fileId}.${ext}`;
 
           try {
-            // Decode the base64 data URL into binary before uploading.
-            // put() treats strings as raw text — passing the data URL directly
-            // would store the literal "data:image/png;base64,..." text instead
-            // of the actual image binary.
-            const base64Data = dataURL.split(',')[1]
-            if (!base64Data) continue
-            const buffer = Buffer.from(base64Data, 'base64')
-
+            const base64Data = dataURL.split(",")[1];
+            if (!base64Data) continue;
+            const buffer = Buffer.from(base64Data, "base64");
             const blob = await put(filename, buffer, {
-              access: 'public',
-              allowOverwrite: true, // idempotent saves for unchanged uploads
-              contentType: file.mimeType ?? 'application/octet-stream',
-            })
-            // Persist normalized URL so future saves don't resend data URLs
-            files[fileId] = { ...file, dataURL: blob.url }
+              access: "public",
+              allowOverwrite: true,
+              contentType: file.mimeType ?? "application/octet-stream",
+            });
+            files[fileId] = { ...file, dataURL: blob.url };
           } catch (blobErr) {
             const message =
-              blobErr instanceof Error ? blobErr.message : 'Upload failed'
-            // Surface a user-meaningful status instead of generic 500
+              blobErr instanceof Error ? blobErr.message : "Upload failed";
             return NextResponse.json(
-              { error: 'Failed to upload file', detail: message },
+              { error: "Failed to upload file", detail: message },
               { status: 422 },
-            )
+            );
           }
         }
       }
-      content.files = files
+      content.files = files;
     }
-    updateData.content = content
+
+    if (content === null) {
+      nextContent = null;
+      updateData.content = Prisma.JsonNull;
+    } else {
+      nextContent = content as Prisma.JsonValue;
+      updateData.content = content as Prisma.InputJsonValue;
+    }
   }
 
   if (title !== undefined || content !== undefined) {
-    const nextTitle = title !== undefined ? title : scene.title
-    const nextContent = content !== undefined ? content : scene.content
     updateData.searchText = buildSceneSearchText({
-      title: nextTitle,
+      title: title !== undefined ? title.trim() : scene.title,
       content: nextContent,
-    })
+    });
   }
-  updateData.lastEditedBy = userId
-  updateData.lastEditedAt = new Date()
+
+  updateData.lastEditedBy = clerkUserId;
+  updateData.lastEditedAt = new Date();
 
   const updatedScene = await db.scene.update({
     where: { id },
     data: updateData,
-  })
+  });
 
-  return NextResponse.json(updatedScene)
+  return NextResponse.json({ ...updatedScene, folderId: updatedScene.collectionId });
 }
 
-// GET: Get scene details
 export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params
-    const user = await getCurrentUser()
+    const { id } = await params;
+    const user = await getCurrentUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const scene = await db.scene.findUnique({
-      where: { id },
-      include: {
-        folder: true,
-      },
-    })
-
+    const scene = await db.scene.findUnique({ where: { id } });
     if (!scene) {
-      return NextResponse.json({ error: 'Scene not found' }, { status: 404 })
+      return NextResponse.json({ error: "Scene not found" }, { status: 404 });
     }
 
-    // Check access
-    if (scene.folderId) {
-      const canAccess = await canAccessFolder(user.id, scene.folderId)
-      if (!canAccess) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    const allowed = await canAccessScene(user.id, id);
+    if (!allowed) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
+    if (scene.collectionId) {
+      const allowedCollection = await canAccessCollection(user.id, scene.collectionId);
+      if (!allowedCollection) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
       }
-    } else if (scene.ownerId !== user.id) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    return NextResponse.json(scene)
+    return NextResponse.json({ ...scene, folderId: scene.collectionId });
   } catch (error) {
-    console.error('Error fetching scene:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    console.error("Error fetching scene:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-// PATCH: Update scene
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    return await updateScene(req, params)
+    return await updateScene(req, params);
   } catch (error) {
-    console.error('Error updating scene:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    console.error("Error updating scene:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-// POST: Update scene (accepts beacons/keepalive)
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    return await updateScene(req, params)
+    return await updateScene(req, params);
   } catch (error) {
-    console.error('Error updating scene:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    console.error("Error updating scene:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-// DELETE: Delete scene
 export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params
-    const user = await getCurrentUser()
+    const { id } = await params;
+    const user = await getCurrentUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const scene = await db.scene.findUnique({
-      where: { id },
-      include: {
-        folder: true,
-      },
-    })
-
+    const scene = await db.scene.findUnique({ where: { id } });
     if (!scene) {
-      return NextResponse.json({ error: 'Scene not found' }, { status: 404 })
+      return NextResponse.json({ error: "Scene not found" }, { status: 404 });
     }
 
-    // Check modify access
-    if (scene.folderId) {
-      const canModify = await canModifyFolder(user.id, scene.folderId)
-      if (!canModify) {
-        return NextResponse.json(
-          { error: 'Permission denied' },
-          { status: 403 }
-        )
-      }
-    } else if (scene.ownerId !== user.id) {
-      return NextResponse.json(
-        { error: 'Permission denied' },
-        { status: 403 }
-      )
+    const canEdit = await canEditScene(user.id, id);
+    if (!canEdit) {
+      return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
-    await db.scene.delete({
-      where: { id },
-    })
-
-    return NextResponse.json({ success: true })
+    await db.scene.delete({ where: { id } });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting scene:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    console.error("Error deleting scene:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

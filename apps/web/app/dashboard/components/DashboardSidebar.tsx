@@ -1,23 +1,22 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeft,
-  LayoutGrid,
-  Folder,
-  Settings,
-  HelpCircle,
-  ChevronDown,
   Check,
-  LogOut,
-  Plus,
-  Sun,
-  Moon,
   ChevronsUpDown,
+  Folder,
+  LayoutGrid,
+  LogOut,
+  Moon,
+  Plus,
   Search,
+  Settings,
+  Sun,
+  User,
+  Users,
+  Wallet,
 } from "lucide-react";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
@@ -28,23 +27,37 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface NavItem {
-  icon: React.ReactNode;
-  label: string;
-  href?: string;
-  active?: boolean;
+interface WorkspaceItem {
+  id: string;
+  name: string;
+  role?: "VIEWER" | "MEMBER" | "ADMIN" | null;
 }
 
-interface NavSection {
-  title?: string;
-  items: NavItem[];
+interface CollectionItem {
+  id: string;
+  name: string;
+}
+
+const ACTIVE_WORKSPACE_KEY = "notedraw.activeWorkspaceId";
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0] || "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 export function DashboardSidebar({
   children,
+  mode = "dashboard",
+  settingsNav,
 }: {
   children:
     | React.ReactNode
@@ -52,202 +65,255 @@ export function DashboardSidebar({
         sidebarCollapsed: boolean;
         setSidebarCollapsed: (collapsed: boolean) => void;
       }) => React.ReactNode);
+  mode?: "dashboard" | "settings";
+  settingsNav?: React.ReactNode;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const currentFolderId = searchParams.get("folderId");
   const { user } = useUser();
   const { signOut } = useClerk();
   const { theme, setTheme } = useTheme();
-  const currentQuery = searchParams.get("q") || "";
-  const searchParamsString = searchParams.toString();
-  // Gate user-derived values behind a mounted flag so the first client
-  // render matches the server render (where Clerk user data isn't available),
-  // avoiding a hydration mismatch.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [activeItem, setActiveItem] = useState("All");
+  const currentWorkspaceId = searchParams.get("workspaceId");
+  const currentCollectionId =
+    searchParams.get("collectionId") || searchParams.get("folderId");
+  const currentQuery = searchParams.get("q") || "";
+  const isSettingsMode = mode === "settings";
+  const isScenePage = !isSettingsMode && pathname?.startsWith("/dashboard/scene");
+
+  const [mounted, setMounted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [searchValue, setSearchValue] = useState(currentQuery);
+
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
+  const [collections, setCollections] = useState<CollectionItem[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(
+    currentWorkspaceId,
+  );
+
   const [newWorkspaceDialogOpen, setNewWorkspaceDialogOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("New Workspace");
-  const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("New Project");
-  const [searchValue, setSearchValue] = useState(currentQuery);
-  const [folders, setFolders] = useState<Array<{ id: string; name: string }>>(
-    [],
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const workspaceButtonRef = useRef<HTMLButtonElement>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({
-    top: 0,
-    left: 0,
-    width: 0,
-  });
-  const isScenePage = pathname?.startsWith("/dashboard/scene");
-  const hideSidebar = isScenePage && sidebarCollapsed;
+  const [newCollectionDialogOpen, setNewCollectionDialogOpen] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState("New Collection");
 
-  const workspaceName =
-    mounted && user?.fullName
-      ? `${user.fullName}'s workspace`
-      : "My workspace";
-
-  const userInitial = mounted
-    ? user?.firstName?.[0] || user?.username?.[0] || ""
-    : "";
-  const userEmail = mounted
-    ? user?.emailAddresses[0]?.emailAddress || ""
-    : "";
-  const userName = mounted ? user?.fullName || user?.username || "User" : "User";
-
-  const navSections: NavSection[] = [
-    {
-      title: "Workspace",
-      items: [{ icon: <LayoutGrid className="w-4 h-4" />, label: "All" }],
-    },
-  ];
-
-  // Fetch folders on mount
-  useEffect(() => {
-    const fetchFolders = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch("/api/folders?parentFolderId=");
-        if (!response.ok) {
-          throw new Error("Failed to fetch folders");
-        }
-        const data = await response.json();
-        setFolders(data.map((f: any) => ({ id: f.id, name: f.name })));
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to fetch folders",
-        );
-        console.error("Error fetching folders:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchFolders();
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     setSearchValue(currentQuery);
   }, [currentQuery]);
 
   useEffect(() => {
-    if (isScenePage) return; // Scene page uses local search only
+    const fetchWorkspaces = async () => {
+      try {
+        const response = await fetch("/api/workspaces");
+        if (!response.ok) {
+          throw new Error("Failed to fetch workspaces");
+        }
+        const data = (await response.json()) as WorkspaceItem[];
+        setWorkspaces(data);
+      } catch (error) {
+        console.error("Error fetching workspaces:", error);
+      }
+    };
+
+    fetchWorkspaces();
+  }, []);
+
+  useEffect(() => {
+    if (!workspaces.length) return;
+
+    const storedWorkspaceId =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem(ACTIVE_WORKSPACE_KEY)
+        : null;
+
+    const requestedWorkspaceId = currentWorkspaceId;
+    const fallbackWorkspaceId =
+      requestedWorkspaceId && workspaces.some((w) => w.id === requestedWorkspaceId)
+        ? requestedWorkspaceId
+        : storedWorkspaceId && workspaces.some((w) => w.id === storedWorkspaceId)
+          ? storedWorkspaceId
+          : workspaces[0].id;
+
+    if (!fallbackWorkspaceId) return;
+
+    setActiveWorkspaceId(fallbackWorkspaceId);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ACTIVE_WORKSPACE_KEY, fallbackWorkspaceId);
+    }
+
+    if (requestedWorkspaceId !== fallbackWorkspaceId) {
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.set("workspaceId", fallbackWorkspaceId);
+      nextParams.delete("folderId");
+      const nextUrl = nextParams.toString()
+        ? `${pathname}?${nextParams.toString()}`
+        : pathname;
+      router.replace(nextUrl);
+    }
+  }, [workspaces, currentWorkspaceId, pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      setCollections([]);
+      return;
+    }
+
+    const fetchCollections = async () => {
+      try {
+        const response = await fetch(
+          `/api/collections?workspaceId=${activeWorkspaceId}`,
+        );
+        if (!response.ok) {
+          throw new Error("Failed to fetch collections");
+        }
+        const data = (await response.json()) as CollectionItem[];
+        setCollections(data);
+      } catch (error) {
+        console.error("Error fetching collections:", error);
+      }
+    };
+
+    fetchCollections();
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    if (isScenePage || isSettingsMode) return;
 
     const trimmed = searchValue.trim();
     const timeout = window.setTimeout(() => {
-      const params = new URLSearchParams(searchParamsString);
+      const nextParams = new URLSearchParams(searchParams.toString());
       if (trimmed.length >= 2) {
-        params.set("q", trimmed);
+        nextParams.set("q", trimmed);
       } else {
-        params.delete("q");
+        nextParams.delete("q");
       }
-      const nextParams = params.toString();
-      if (nextParams === searchParamsString) {
-        return;
+
+      if (activeWorkspaceId) {
+        nextParams.set("workspaceId", activeWorkspaceId);
       }
-      const nextUrl = nextParams ? `${pathname}?${nextParams}` : pathname;
-      router.push(nextUrl);
+
+      const nextQuery = nextParams.toString();
+      const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+      const currentUrl = searchParams.toString()
+        ? `${pathname}?${searchParams.toString()}`
+        : pathname;
+
+      if (nextUrl !== currentUrl) {
+        router.push(nextUrl);
+      }
     }, 300);
 
     return () => window.clearTimeout(timeout);
-  }, [searchValue, pathname, router, searchParamsString, isScenePage]);
+  }, [
+    activeWorkspaceId,
+    isScenePage,
+    isSettingsMode,
+    pathname,
+    router,
+    searchParams,
+    searchValue,
+  ]);
 
-  const handleCreateWorkspace = async () => {
-    if (newWorkspaceName.trim()) {
-      try {
-        const response = await fetch("/api/folders", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: newWorkspaceName.trim(),
-            parentFolderId: null, // Workspace is top-level
-          }),
-        });
+  const activeWorkspace = useMemo(
+    () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) || null,
+    [workspaces, activeWorkspaceId],
+  );
 
-        if (!response.ok) {
-          throw new Error("Failed to create workspace");
-        }
+  const userName = mounted ? user?.fullName || user?.username || "User" : "User";
+  const userEmail = mounted ? user?.emailAddresses[0]?.emailAddress || "" : "";
+  const workspaceLabel = activeWorkspace?.name || "Workspace";
+  const workspaceInitials = getInitials(workspaceLabel);
+  const userInitials = getInitials(userName);
+  const hideSidebar = isScenePage && sidebarCollapsed;
 
-        const newFolder = await response.json();
-        setFolders([...folders, { id: newFolder.id, name: newFolder.name }]);
-        setNewWorkspaceDialogOpen(false);
-        setNewWorkspaceName("New Workspace");
-      } catch (err) {
-        console.error("Error creating workspace:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to create workspace",
-        );
-      }
+  const goToDashboard = () => {
+    const params = new URLSearchParams();
+    if (activeWorkspaceId) {
+      params.set("workspaceId", activeWorkspaceId);
     }
+    const nextUrl = params.toString() ? `/dashboard?${params.toString()}` : "/dashboard";
+    router.push(nextUrl);
   };
 
-  const handleCreateProject = async () => {
-    if (newProjectName.trim()) {
-      try {
-        const response = await fetch("/api/folders", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: newProjectName.trim(),
-            // parentFolderId will be the current workspace/folder - for now, null (top-level)
-            parentFolderId: null,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to create folder");
-        }
-
-        const newFolder = await response.json();
-        setFolders([...folders, { id: newFolder.id, name: newFolder.name }]);
-        setNewProjectDialogOpen(false);
-        setNewProjectName("New Project");
-      } catch (err) {
-        console.error("Error creating folder:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to create folder",
-        );
-      }
+  const selectWorkspace = (workspaceId: string) => {
+    setActiveWorkspaceId(workspaceId);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ACTIVE_WORKSPACE_KEY, workspaceId);
     }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("workspaceId", workspaceId);
+    params.delete("collectionId");
+    params.delete("folderId");
+    const target = `/dashboard?${params.toString()}`;
+    router.push(target);
   };
 
-  // Sync activeItem with URL on mount and when URL changes
-  useEffect(() => {
-    if (currentFolderId) {
-      setActiveItem(currentFolderId);
+  const selectCollection = (collectionId?: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (activeWorkspaceId) {
+      params.set("workspaceId", activeWorkspaceId);
+    }
+    if (collectionId) {
+      params.set("collectionId", collectionId);
+      params.delete("folderId");
     } else {
-      setActiveItem("All");
+      params.delete("collectionId");
+      params.delete("folderId");
     }
-  }, [currentFolderId]);
+    router.push(`/dashboard?${params.toString()}`);
+  };
 
-  // Calculate dropdown position when it opens
-  useEffect(() => {
-    if (workspaceOpen && workspaceButtonRef.current) {
-      const rect = workspaceButtonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 4, // 4px offset (mt-1)
-        left: rect.left,
-        width: rect.width,
+  const createWorkspace = async () => {
+    if (!newWorkspaceName.trim()) return;
+
+    try {
+      const response = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newWorkspaceName.trim() }),
       });
+      if (!response.ok) {
+        throw new Error("Failed to create workspace");
+      }
+      const created = (await response.json()) as WorkspaceItem;
+      setWorkspaces((prev) => [created, ...prev]);
+      setNewWorkspaceDialogOpen(false);
+      setNewWorkspaceName("New Workspace");
+      selectWorkspace(created.id);
+    } catch (error) {
+      console.error("Error creating workspace:", error);
     }
-  }, [workspaceOpen]);
+  };
+
+  const createCollection = async () => {
+    if (!newCollectionName.trim() || !activeWorkspaceId) return;
+
+    try {
+      const response = await fetch("/api/collections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId: activeWorkspaceId,
+          name: newCollectionName.trim(),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to create collection");
+      }
+      const created = (await response.json()) as CollectionItem;
+      setCollections((prev) => [...prev, created]);
+      setNewCollectionDialogOpen(false);
+      setNewCollectionName("New Collection");
+    } catch (error) {
+      console.error("Error creating collection:", error);
+    }
+  };
 
   return (
     <div className="flex h-screen w-full bg-background">
-      {/* Sidebar */}
       <aside
         className={cn(
           "flex-shrink-0 bg-card border-r border-border flex flex-col transition-all duration-300",
@@ -255,371 +321,285 @@ export function DashboardSidebar({
             ? "w-0 border-r-0 overflow-hidden pointer-events-none opacity-0"
             : sidebarCollapsed
               ? "w-[60px]"
-              : "w-[240px]",
+              : "w-[260px]",
         )}
         aria-hidden={hideSidebar}
       >
-        {/* Workspace Selector */}
-        <div className="p-3">
+        <div className="p-3 border-b border-border">
           {sidebarCollapsed ? (
-            // Collapsed view - just avatar
-            <div className="flex justify-center">
-              <div className="w-8 h-8 rounded-lg bg-[#4ade80] flex items-center justify-center text-black font-semibold text-sm">
-                {userInitial}
-              </div>
-            </div>
+            <button
+              className="w-8 h-8 rounded-lg bg-emerald-400/90 text-black text-xs font-semibold mx-auto"
+              onClick={() => {
+                if (isSettingsMode) {
+                  goToDashboard();
+                  return;
+                }
+                setSidebarCollapsed(false);
+              }}
+              title={workspaceLabel}
+            >
+              {workspaceInitials}
+            </button>
           ) : (
-            // Expanded view
             <>
-              <div className="relative">
+              {isSettingsMode ? (
                 <button
-                  ref={workspaceButtonRef}
-                  onClick={() => setWorkspaceOpen(!workspaceOpen)}
+                  onClick={goToDashboard}
                   className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary transition-colors"
+                  title="Back to dashboard"
                 >
-                  {/* Avatar */}
-                  <div className="w-8 h-8 rounded-lg bg-[#4ade80] flex items-center justify-center text-black font-semibold text-sm flex-shrink-0">
-                    {userInitial}
+                  <div className="w-8 h-8 rounded-lg bg-emerald-400/90 text-black flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                    {workspaceInitials}
                   </div>
-                  <div className="flex-1 text-left min-w-0">
+                  <div className="min-w-0 flex-1 text-left">
                     <div className="text-sm font-medium text-foreground truncate">
-                      {workspaceName.length > 20
-                        ? workspaceName.slice(0, 20) + "..."
-                        : workspaceName}
+                      {workspaceLabel}
                     </div>
-                    <div className="text-xs text-muted-foreground">1 Member</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      Back to dashboard
+                    </div>
                   </div>
-                  <ChevronsUpDown className="w-4 h-4" />
                 </button>
-
-                {/* Workspace Dropdown - rendered via portal */}
-                {workspaceOpen &&
-                  typeof window !== "undefined" &&
-                  createPortal(
-                    <>
-                      {/* Backdrop to close on outside click */}
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setWorkspaceOpen(false)}
-                      />
-                      {/* Dropdown content */}
-                      <div
-                        className="fixed bg-popover border border-border rounded-lg shadow-xl z-50 py-2"
-                        style={{
-                          top: `${dropdownPosition.top}px`,
-                          left: `${dropdownPosition.left}px`,
-                          width: `${dropdownPosition.width}px`,
-                          minWidth: "280px", // Ensure minimum width
-                        }}
-                        onClick={(e) => e.stopPropagation()}
+              ) : (
+                <>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary transition-colors">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-400/90 text-black flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                          {workspaceInitials}
+                        </div>
+                        <div className="min-w-0 flex-1 text-left">
+                          <div className="text-sm font-medium text-foreground truncate">
+                            {workspaceLabel}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {activeWorkspace?.role || "MEMBER"}
+                          </div>
+                        </div>
+                        <ChevronsUpDown className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-72">
+                      <DropdownMenuLabel>Workspace</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        onClick={() =>
+                          router.push(
+                            `/settings/workspace/settings?workspaceId=${activeWorkspaceId || ""}`,
+                          )
+                        }
                       >
-                        {/* User Info */}
-                        <div className="px-3 py-2 border-b border-border">
-                          <div className="flex items-center gap-3">
-                            {user?.imageUrl ? (
-                              <img
-                                src={user.imageUrl}
-                                alt="Profile"
-                                className="w-8 h-8 rounded-lg object-cover"
-                              />
-                            ) : (
-                              <div className="w-8 h-8 rounded-lg bg-[#4ade80] flex items-center justify-center text-black font-semibold text-sm">
-                                {userInitial}
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-foreground truncate">
-                                {user?.fullName || user?.username}
-                              </div>
-                              <div className="text-xs text-muted-foreground truncate">
-                                {userEmail.slice(0, 20)}
-                                {userEmail.length > 20 ? "..." : ""}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <Settings className="w-4 h-4 mr-2" />
+                        Workspace settings
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() =>
+                          router.push(
+                            `/settings/workspace/members?workspaceId=${activeWorkspaceId || ""}`,
+                          )
+                        }
+                      >
+                        <Users className="w-4 h-4 mr-2" />
+                        Team members
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() =>
+                          router.push(
+                            `/settings/subscription/billing?workspaceId=${activeWorkspaceId || ""}`,
+                          )
+                        }
+                      >
+                        <Wallet className="w-4 h-4 mr-2" />
+                        Billing
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => router.push("/settings/account/profile")}
+                      >
+                        <User className="w-4 h-4 mr-2" />
+                        User account
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Your workspaces</DropdownMenuLabel>
+                      {workspaces.map((workspace) => (
+                        <DropdownMenuItem
+                          key={workspace.id}
+                          onClick={() => selectWorkspace(workspace.id)}
+                          className="flex items-center gap-2"
+                        >
+                          <span className="truncate">{workspace.name}</span>
+                          {activeWorkspaceId === workspace.id ? (
+                            <Check className="w-4 h-4 ml-auto text-emerald-500" />
+                          ) : null}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setNewWorkspaceDialogOpen(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create workspace
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-                        {/* Workspaces */}
-                        <div className="px-2 py-2">
-                          <div className="text-xs text-muted-foreground px-2 mb-2">
-                            Workspaces
-                          </div>
-                          <button className="w-full flex items-center gap-3 p-2 rounded-md bg-accent hover:bg-accent/80 transition-colors">
-                            <div className="w-6 h-6 rounded bg-[#4ade80] flex items-center justify-center text-black font-semibold text-xs">
-                              {userInitial}
-                            </div>
-                            <div className="flex-1 text-left">
-                              <div className="text-sm text-foreground truncate">
-                                {workspaceName.length > 18
-                                  ? workspaceName.slice(0, 18) + "..."
-                                  : workspaceName}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                Free · 1 member
-                              </div>
-                            </div>
-                            <Check className="w-4 h-4 text-[#4ade80]" />
-                          </button>
-
-                          <button className="w-full flex items-center gap-2 p-2 mt-1 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground">
-                            <Plus className="w-4 h-4" />
-                            Create a new workspace
-                          </button>
-                        </div>
-
-                        {/* Logout */}
-                        <div className="border-t border-border px-2 pt-2 mt-2">
-                          <button
-                            onClick={() => signOut()}
-                            className="w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground"
-                          >
-                            <LogOut className="w-4 h-4" />
-                            Sign out
-                          </button>
-                        </div>
-                      </div>
-                    </>,
-                    document.body,
-                  )}
-              </div>
-              <div className="mt-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={searchValue}
-                    onChange={(event) => setSearchValue(event.target.value)}
-                    placeholder="Search scenes"
-                    className="w-full h-9 pl-10 pr-3 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-input transition-colors"
-                  />
-                </div>
-              </div>
+                  <div className="mt-3 relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={searchValue}
+                      onChange={(event) => setSearchValue(event.target.value)}
+                      placeholder="Search scenes"
+                      className="w-full h-9 pl-10 pr-3 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-input transition-colors"
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-2 py-2">
-          {isScenePage ? (
-            <SceneSidebarList query={searchValue} />
+          {isSettingsMode ? (
+            settingsNav || null
+          ) : isScenePage ? (
+            <SceneSidebarList query={searchValue} workspaceId={activeWorkspaceId} />
           ) : (
-            navSections.map((section, idx) => (
-              <div key={idx} className="mb-4">
-                {!sidebarCollapsed && section.title && (
-                  <div className="group px-3 mb-1 flex items-center justify-between">
-                    <div className="text-xs text-muted-foreground">
-                      {section.title}
-                    </div>
-                    <button
-                      onClick={() => setNewProjectDialogOpen(true)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
-                      title="Create folder"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-                <div className="space-y-0.5">
-                  {section.items.map((item, itemIdx) => (
-                    <button
-                      key={itemIdx}
-                      onClick={() => {
-                        setActiveItem(item.label);
-                        // If "All" is clicked, go back to base dashboard without folderId
-                        if (item.label === "All") {
-                          router.push("/dashboard");
-                        }
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors",
-                        activeItem === item.label && !currentFolderId
-                          ? "bg-secondary text-foreground"
-                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                        sidebarCollapsed && "justify-center px-2",
-                      )}
-                      title={sidebarCollapsed ? item.label : undefined}
-                    >
-                      {item.icon}
-                      {!sidebarCollapsed && <span>{item.label}</span>}
-                    </button>
-                  ))}
-
-                  {/* Render created folders */}
-                  {!sidebarCollapsed &&
-                    folders.map((folder) => (
-                      <button
-                        key={folder.id}
-                        onClick={() => {
-                          setActiveItem(folder.id);
-                          router.push(`/dashboard?folderId=${folder.id}`);
-                        }}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors",
-                          activeItem === folder.id ||
-                            currentFolderId === folder.id
-                            ? "bg-secondary text-foreground"
-                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                        )}
-                      >
-                        <Folder className="w-4 h-4" />
-                        <span>{folder.name}</span>
-                      </button>
-                    ))}
-
-                  {/* Show folders in collapsed view too */}
-                  {sidebarCollapsed &&
-                    folders.map((folder) => (
-                      <button
-                        key={folder.id}
-                        onClick={() => {
-                          setActiveItem(folder.id);
-                          router.push(`/dashboard?folderId=${folder.id}`);
-                        }}
-                        className={cn(
-                          "w-full flex items-center justify-center px-2 py-1.5 rounded-md text-sm transition-colors",
-                          activeItem === folder.id ||
-                            currentFolderId === folder.id
-                            ? "bg-secondary text-foreground"
-                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                        )}
-                        title={folder.name}
-                      >
-                        <Folder className="w-4 h-4" />
-                      </button>
-                    ))}
+            <div className="space-y-2">
+              {!sidebarCollapsed && (
+                <div className="px-3 pt-1 pb-0.5 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Collections</span>
+                  <button
+                    className="p-1 rounded hover:bg-secondary text-muted-foreground"
+                    onClick={() => setNewCollectionDialogOpen(true)}
+                    title="New collection"
+                    disabled={!activeWorkspaceId}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-              </div>
-            ))
+              )}
+
+              <button
+                onClick={() => selectCollection(undefined)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors",
+                  !currentCollectionId
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  sidebarCollapsed && "justify-center px-2",
+                )}
+                title={sidebarCollapsed ? "All scenes" : undefined}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                {!sidebarCollapsed && <span>All scenes</span>}
+              </button>
+
+              {collections.map((collection) => (
+                <button
+                  key={collection.id}
+                  onClick={() => selectCollection(collection.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors",
+                    currentCollectionId === collection.id
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    sidebarCollapsed && "justify-center px-2",
+                  )}
+                  title={sidebarCollapsed ? collection.name : undefined}
+                >
+                  <Folder className="w-4 h-4" />
+                  {!sidebarCollapsed && (
+                    <span className="truncate">{collection.name}</span>
+                  )}
+                </button>
+              ))}
+            </div>
           )}
         </nav>
 
-        {/* Bottom Actions */}
-        <div className="p-3 border-t border-border">
+        <div className="border-t border-border p-3">
           {sidebarCollapsed ? (
-            // Collapsed bottom actions
             <div className="flex flex-col items-center gap-2">
-              <button className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground">
-                <LayoutGrid className="w-4 h-4" />
+              <button
+                className="w-8 h-8 rounded-lg bg-secondary text-foreground text-xs font-semibold"
+                title={userName}
+              >
+                {userInitials}
               </button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                    title={
-                      theme === "dark"
-                        ? "Switch to light mode"
-                        : "Switch to dark mode"
-                    }
-                  >
-                    {theme === "dark" ? (
-                      <Sun className="w-4 h-4" />
-                    ) : (
-                      <Moon className="w-4 h-4" />
-                    )}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" side="right" className="w-40">
-                  <DropdownMenuItem
-                    onClick={() => setTheme("light")}
-                    className="flex items-center gap-2"
-                  >
-                    <Sun className="w-4 h-4" />
-                    Light
-                    {theme === "light" && <span className="ml-auto">✓</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setTheme("dark")}
-                    className="flex items-center gap-2"
-                  >
-                    <Moon className="w-4 h-4" />
-                    Dark
-                    {theme === "dark" && <span className="ml-auto">✓</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      const prefersDark = window.matchMedia(
-                        "(prefers-color-scheme: dark)",
-                      ).matches;
-                      setTheme(prefersDark ? "dark" : "light");
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <ChevronsUpDown className="w-4 h-4" />
-                    System
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <button className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground">
-                <Settings className="w-4 h-4" />
-              </button>
-              <button className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground">
-                <HelpCircle className="w-4 h-4" />
+              <button
+                className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground"
+                onClick={() => signOut()}
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
           ) : (
-            // Expanded bottom actions
-            <div className="flex items-center justify-between">
-              <Link
-                href="/landing"
-                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary transition-colors text-sm text-muted-foreground"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Back</span>
-              </Link>
-              <div className="flex items-center gap-1">
+            <div className="rounded-lg border border-border p-2.5 bg-background/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-secondary text-foreground text-xs font-semibold flex items-center justify-center">
+                  {userInitials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground truncate">
+                    {userName}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {userEmail}
+                  </div>
+                </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button
-                      className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                      title={
-                        theme === "dark"
-                          ? "Switch to light mode"
-                          : "Switch to dark mode"
-                      }
-                    >
-                      {theme === "dark" ? (
-                        <Sun className="w-4 h-4" />
-                      ) : (
-                        <Moon className="w-4 h-4" />
-                      )}
+                    <button className="p-1.5 rounded hover:bg-secondary text-muted-foreground">
+                      <Settings className="w-4 h-4" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuContent align="end">
                     <DropdownMenuItem
-                      onClick={() => setTheme("light")}
-                      className="flex items-center gap-2"
+                      onClick={() => router.push("/settings/account/profile")}
                     >
-                      <Sun className="w-4 h-4" />
-                      Light
-                      {theme === "light" && <span className="ml-auto">✓</span>}
+                      <User className="w-4 h-4 mr-2" />
+                      Account
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => setTheme("dark")}
-                      className="flex items-center gap-2"
+                      onClick={() => router.push("/settings/account/preferences")}
                     >
-                      <Moon className="w-4 h-4" />
-                      Dark
-                      {theme === "dark" && <span className="ml-auto">✓</span>}
+                      <Settings className="w-4 h-4 mr-2" />
+                      Preferences
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        const prefersDark = window.matchMedia(
-                          "(prefers-color-scheme: dark)",
-                        ).matches;
-                        setTheme(prefersDark ? "dark" : "light");
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      <ChevronsUpDown className="w-4 h-4" />
-                      System
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => signOut()}>
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sign out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <button className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground">
-                  <Settings className="w-4 h-4" />
-                </button>
-                <button className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground">
-                  <HelpCircle className="w-4 h-4" />
+              </div>
+
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <Link
+                  href="/landing"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Back
+                </Link>
+                <button
+                  className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                  onClick={() =>
+                    setTheme(
+                      theme === "dark" ? "light" : "dark",
+                    )
+                  }
+                  title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                >
+                  {theme === "dark" ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Sun className="w-3 h-3" />
+                      Light
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1">
+                      <Moon className="w-3 h-3" />
+                      Dark
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -627,9 +607,7 @@ export function DashboardSidebar({
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* Page Content */}
         <div className="flex-1 flex flex-col min-w-0">
           {typeof children === "function"
             ? children({ sidebarCollapsed, setSidebarCollapsed })
@@ -637,30 +615,28 @@ export function DashboardSidebar({
         </div>
       </main>
 
-      {/* New Workspace Dialog */}
       <SimpleInputModal
         open={newWorkspaceDialogOpen}
         onOpenChange={setNewWorkspaceDialogOpen}
-        title="New Folder"
+        title="Create workspace"
         value={newWorkspaceName}
         onChange={setNewWorkspaceName}
-        onSubmit={handleCreateWorkspace}
-        placeholder="New Folder"
-        helperText="Folders are accessible to anyone in this organization."
-        submitLabel="Done"
+        onSubmit={createWorkspace}
+        placeholder="Workspace name"
+        helperText="Create a separate workspace and invite teammates later from settings."
+        submitLabel="Create"
       />
 
-      {/* New Folder Dialog */}
       <SimpleInputModal
-        open={newProjectDialogOpen}
-        onOpenChange={setNewProjectDialogOpen}
-        title="New Folder"
-        value={newProjectName}
-        onChange={setNewProjectName}
-        onSubmit={handleCreateProject}
-        placeholder="Folder name"
-        helperText="Folders are accessible to anyone in this organization."
-        submitLabel="Done"
+        open={newCollectionDialogOpen}
+        onOpenChange={setNewCollectionDialogOpen}
+        title="Create collection"
+        value={newCollectionName}
+        onChange={setNewCollectionName}
+        onSubmit={createCollection}
+        placeholder="Collection name"
+        helperText="Collections organize scenes inside the current workspace."
+        submitLabel="Create"
       />
     </div>
   );

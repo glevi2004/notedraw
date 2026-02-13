@@ -1,7 +1,6 @@
-import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
-import { getCurrentUser, canAccessFolder } from '@/lib/auth'
+import { canAccessScene, getCurrentUser } from '@/lib/auth'
 import { SceneEditor } from './SceneEditor'
 
 export default async function ScenePage({
@@ -18,23 +17,13 @@ export default async function ScenePage({
 
   const scene = await db.scene.findUnique({
     where: { id },
-    include: {
-      folder: true,
-    },
   })
 
   if (!scene) {
     redirect('/dashboard')
   }
 
-  // Check if user has direct access to the scene
-  let hasAccess = false
-  
-  if (scene.folderId) {
-    hasAccess = await canAccessFolder(user.id, scene.folderId)
-  } else if (scene.ownerId === user.id) {
-    hasAccess = true
-  }
+  let hasAccess = await canAccessScene(user.id, scene.id)
 
   // If no direct access, check if there's an active public collaboration room
   // This allows users to join live sessions even if they don't own the scene

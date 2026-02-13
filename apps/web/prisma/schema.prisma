@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -11,111 +8,319 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model - synced with Clerk
-model User {
-  id            String    @id @default(cuid())
-  clerkId       String    @unique // Clerk user ID
-  email         String?   @unique
-  firstName     String?
-  lastName      String?
-  imageUrl      String?
-  
-  // Relations
-  ownedFolders  Folder[]  @relation("FolderOwner")
-  ownedScenes   Scene[]   @relation("SceneOwner")
-  folderMembers FolderMember[]
+enum WorkspaceRole {
+  VIEWER
+  MEMBER
+  ADMIN
+}
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+enum WorkspaceInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum WorkspaceJobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum ThemePreference {
+  SYSTEM
+  LIGHT
+  DARK
+}
+
+model User {
+  id                   String                 @id @default(cuid())
+  clerkId              String                 @unique
+  email                String?                @unique
+  firstName            String?
+  lastName             String?
+  imageUrl             String?
+
+  workspaceMemberships WorkspaceMember[]
+  createdWorkspaces    Workspace[]            @relation("WorkspaceCreator")
+  createdScenes        Scene[]                @relation("SceneCreator")
+  invitationsSent      WorkspaceInvitation[]  @relation("WorkspaceInvitationInviter")
+  activityLogs         WorkspaceActivityLog[] @relation("WorkspaceActivityActor")
+  exportJobsRequested  WorkspaceExportJob[]   @relation("WorkspaceExportRequestedBy")
+  importJobsRequested  WorkspaceImportJob[]   @relation("WorkspaceImportRequestedBy")
+  collabRoomsCreated   CollabRoom[]           @relation("CollabRoomCreator")
+  shareSnapshotsCreated ShareSnapshot[]       @relation("ShareSnapshotCreator")
+  preference           UserPreference?
+
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@index([clerkId])
   @@index([email])
 }
 
-// Folder model - workspaces are top-level folders with parentFolderId = null
-model Folder {
-  id            String    @id @default(cuid())
+model Workspace {
+  id            String                @id @default(cuid())
   name          String
-  description   String?
-  ownerId       String
-  parentFolderId String?
-  order         Int       @default(0)
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  slug          String?               @unique
+  logoUrl       String?
+  aiEnabled     Boolean               @default(true)
+  createdById   String
 
-  // Relations
-  owner         User      @relation("FolderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  parentFolder  Folder?   @relation("FolderHierarchy", fields: [parentFolderId], references: [id], onDelete: Cascade)
-  subfolders    Folder[]  @relation("FolderHierarchy")
+  members       WorkspaceMember[]
+  teams         Team[]
+  collections   Collection[]
   scenes        Scene[]
-  members       FolderMember[]
+  invitations   WorkspaceInvitation[]
+  activityLogs  WorkspaceActivityLog[]
+  exportJobs    WorkspaceExportJob[]
+  importJobs    WorkspaceImportJob[]
+  createdBy     User                  @relation("WorkspaceCreator", fields: [createdById], references: [id], onDelete: Cascade)
 
-  @@index([ownerId])
-  @@index([parentFolderId])
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([createdById])
 }
 
-// FolderMember model - for sharing folders/workspaces
-model FolderMember {
-  id        String   @id @default(cuid())
-  folderId  String
-  userId    String
-  role      String   // OWNER, EDITOR, VIEWER
-  createdAt DateTime @default(now())
+model WorkspaceMember {
+  id           String         @id @default(cuid())
+  workspaceId  String
+  userId       String
+  role         WorkspaceRole
 
-  // Relations
-  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teams        TeamMember[]
 
-  @@unique([folderId, userId])
-  @@index([folderId])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
   @@index([userId])
 }
 
-// Scene model
-model Scene {
-  id            String    @id @default(cuid())
-  title         String
-  ownerId       String
-  folderId      String?
-  content       Json?
-  searchText    String?   @db.Text
-  lastEditedBy  String?   // Clerk user ID
-  lastEditedAt DateTime?
+model Collection {
+  id           String           @id @default(cuid())
+  workspaceId  String
+  name         String
+  description  String?
+  parentId     String?
+  order        Int              @default(0)
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent       Collection?      @relation("CollectionHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Collection[]     @relation("CollectionHierarchy")
+  scenes       Scene[]
+  teamLinks    TeamCollection[]
 
-  // Relations
-  owner         User      @relation("SceneOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  folder        Folder?   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
-  @@index([ownerId])
-  @@index([folderId])
+  @@index([workspaceId])
+  @@index([parentId])
+  @@index([workspaceId, parentId, order])
 }
 
-// Collaboration room (capability-based)
+model Scene {
+  id            String          @id @default(cuid())
+  workspaceId   String
+  collectionId  String?
+  title         String
+  content       Json?
+  searchText    String?         @db.Text
+  lastEditedBy  String?
+  lastEditedAt  DateTime?
+  createdById   String?
+
+  workspace     Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  collection    Collection?     @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  createdBy     User?           @relation("SceneCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  collabRooms   CollabRoom[]
+  shareSnapshots ShareSnapshot[]
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([workspaceId])
+  @@index([collectionId])
+  @@index([workspaceId, updatedAt])
+}
+
+model Team {
+  id           String          @id @default(cuid())
+  workspaceId  String
+  name         String
+
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members      TeamMember[]
+  collections  TeamCollection[]
+
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([workspaceId])
+  @@unique([workspaceId, name])
+}
+
+model TeamMember {
+  id          String           @id @default(cuid())
+  teamId      String
+  memberId    String
+  role        WorkspaceRole
+
+  team        Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  member      WorkspaceMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([teamId, memberId])
+  @@index([teamId])
+  @@index([memberId])
+}
+
+model TeamCollection {
+  id            String       @id @default(cuid())
+  teamId        String
+  collectionId  String
+
+  team          Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  collection    Collection   @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([teamId, collectionId])
+  @@index([teamId])
+  @@index([collectionId])
+}
+
+model WorkspaceInvitation {
+  id           String                    @id @default(cuid())
+  workspaceId  String
+  email        String
+  role         WorkspaceRole             @default(VIEWER)
+  status       WorkspaceInvitationStatus @default(PENDING)
+  token        String                    @unique
+  invitedById  String
+  expiresAt    DateTime?
+  acceptedAt   DateTime?
+
+  workspace    Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy    User                      @relation("WorkspaceInvitationInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  @@index([workspaceId, status])
+  @@index([email])
+}
+
+model WorkspaceActivityLog {
+  id          String      @id @default(cuid())
+  workspaceId String
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actorUser   User?       @relation("WorkspaceActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime    @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([actorUserId])
+}
+
+model WorkspaceExportJob {
+  id            String            @id @default(cuid())
+  workspaceId   String
+  requestedById String?
+  status        WorkspaceJobStatus @default(PENDING)
+  scope         String            @default("workspace")
+  blobPath      String?
+  errorMessage  String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requestedBy   User?             @relation("WorkspaceExportRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([workspaceId, createdAt])
+  @@index([requestedById])
+}
+
+model WorkspaceImportJob {
+  id            String            @id @default(cuid())
+  workspaceId   String
+  requestedById String?
+  status        WorkspaceJobStatus @default(PENDING)
+  sourceName    String?
+  sourcePath    String?
+  summary       Json?
+  errorMessage  String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requestedBy   User?             @relation("WorkspaceImportRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([workspaceId, createdAt])
+  @@index([requestedById])
+}
+
+model UserPreference {
+  id         String          @id @default(cuid())
+  userId     String          @unique
+  theme      ThemePreference @default(SYSTEM)
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+}
+
 model CollabRoom {
-  id           String   @id
+  id           String    @id
   sceneId      String?
   createdById  String?
-  isPublic     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  isPublic     Boolean   @default(true)
   lastActiveAt DateTime?
   revokedAt    DateTime?
 
+  scene        Scene?    @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  createdBy    User?     @relation("CollabRoomCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt    DateTime  @default(now())
+
   @@index([sceneId])
+  @@index([createdById])
 }
 
-// Shareable snapshot (encrypted payload stored in blob)
 model ShareSnapshot {
-  id          String   @id
-  sceneId     String?
-  createdById String?
-  blobPath    String
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime?
-  revokedAt   DateTime?
+  id           String    @id
+  sceneId      String?
+  createdById  String?
+  blobPath     String
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+
+  scene        Scene?    @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  createdBy    User?     @relation("ShareSnapshotCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt    DateTime  @default(now())
 
   @@index([sceneId])
+  @@index([createdById])
 }

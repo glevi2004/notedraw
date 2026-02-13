@@ -16,13 +16,15 @@ import {
 
 interface SceneSidebarListProps {
   query: string;
+  workspaceId?: string | null;
 }
 
 interface SceneListItem {
   id: string;
   title: string;
   content?: unknown;
-  folderId?: string | null;
+  workspaceId: string;
+  collectionId?: string | null;
   updatedAt: string;
   lastEditedAt?: string | null;
   lastEditedByName?: string | null;
@@ -30,7 +32,7 @@ interface SceneListItem {
 
 // Sidebar list shown only inside the scene editor page.
 // Fetches scenes (optionally filtered by search) and highlights the active one.
-export function SceneSidebarList({ query }: SceneSidebarListProps) {
+export function SceneSidebarList({ query, workspaceId }: SceneSidebarListProps) {
   const [scenes, setScenes] = useState<SceneListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
@@ -44,6 +46,9 @@ export function SceneSidebarList({ query }: SceneSidebarListProps) {
       setLoading(true);
       const params = new URLSearchParams({ includeAll: "1" });
       const trimmed = query.trim();
+      if (workspaceId) {
+        params.set("workspaceId", workspaceId);
+      }
       if (trimmed.length >= 2) {
         params.set("q", trimmed);
       }
@@ -69,7 +74,7 @@ export function SceneSidebarList({ query }: SceneSidebarListProps) {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [query]);
+  }, [query, workspaceId]);
 
   const list = useMemo(() => scenes.slice(0, 100), [scenes]);
 
@@ -117,7 +122,8 @@ export function SceneSidebarList({ query }: SceneSidebarListProps) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 title: `${scene.title} (copy)`,
-                folderId: scene.folderId || null,
+                workspaceId: scene.workspaceId,
+                collectionId: scene.collectionId || null,
                 content: scene.content || null,
               }),
             });
@@ -130,18 +136,23 @@ export function SceneSidebarList({ query }: SceneSidebarListProps) {
         };
 
         const handleMove = async () => {
-          const folderId = window.prompt("Move to folder id (or leave blank for none)", scene.folderId || "");
-          if (folderId === null) return;
-          const normalized = folderId.trim() || null;
+          const collectionId = window.prompt(
+            "Move to collection id (or leave blank for none)",
+            scene.collectionId || "",
+          );
+          if (collectionId === null) return;
+          const normalized = collectionId.trim() || null;
           try {
             const res = await fetch(`/api/scenes/${scene.id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ folderId: normalized }),
+              body: JSON.stringify({ collectionId: normalized }),
             });
             if (!res.ok) return;
             setScenes((prev) =>
-              prev.map((s) => (s.id === scene.id ? { ...s, folderId: normalized } : s)),
+              prev.map((s) =>
+                s.id === scene.id ? { ...s, collectionId: normalized } : s,
+              ),
             );
           } catch (err) {
             console.error("Move failed", err);
@@ -160,7 +171,8 @@ export function SceneSidebarList({ query }: SceneSidebarListProps) {
           }
         };
 
-        const navigateToScene = () => router.push(`/dashboard/scene/${scene.id}`);
+        const navigateToScene = () =>
+          router.push(`/dashboard/scene/${scene.id}?workspaceId=${scene.workspaceId}`);
 
         return (
           <div
@@ -216,7 +228,7 @@ export function SceneSidebarList({ query }: SceneSidebarListProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            {!scene.folderId && (
+            {!scene.collectionId && (
               <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0 absolute bottom-2 right-2" />
             )}
           </div>

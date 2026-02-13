@@ -1,37 +1,82 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { db } from "./db";
 
-/**
- * Get the current authenticated user from Clerk and sync with database
- * Returns the database user record
- */
-export async function getCurrentUser() {
-  const { userId } = await auth();
+export type WorkspaceRoleValue = "VIEWER" | "MEMBER" | "ADMIN";
 
-  if (!userId) {
-    return null;
-  }
-
-  // Ensure user exists in database
-  const user = await ensureUserExists(userId);
-
-  return user;
+function deriveWorkspaceName(args: {
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+}) {
+  const display =
+    args.firstName ||
+    args.lastName ||
+    args.email?.split("@")[0] ||
+    "My";
+  return `${display}'s Workspace`;
 }
 
 /**
- * Ensure user exists in database, create if missing
- * Returns the database user record
+ * Ensure a user has at least one workspace where they are ADMIN.
+ * Returns the workspace id (existing or newly created).
+ */
+export async function ensureDefaultWorkspaceForUser(
+  userId: string,
+  workspaceName: string,
+) {
+  const existingMembership = await db.workspaceMember.findFirst({
+    where: { userId },
+    select: { workspaceId: true },
+  });
+
+  if (existingMembership) {
+    return existingMembership.workspaceId;
+  }
+
+  const createdWorkspace = await db.workspace.create({
+    data: {
+      name: workspaceName,
+      createdById: userId,
+      members: {
+        create: {
+          userId,
+          role: "ADMIN",
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  return createdWorkspace.id;
+}
+
+/**
+ * Get the current authenticated user from Clerk and sync with database.
+ */
+export async function getCurrentUser() {
+  const { userId } = await auth();
+  if (!userId) return null;
+  return ensureUserExists(userId);
+}
+
+/**
+ * Ensure user exists in database, create if missing.
  */
 export async function ensureUserExists(clerkId: string) {
-  // Fast path: return existing DB user without hitting Clerk (avoids rate limits)
   const existing = await db.user.findUnique({ where: { clerkId } });
   if (existing) {
+    await ensureDefaultWorkspaceForUser(
+      existing.id,
+      deriveWorkspaceName({
+        firstName: existing.firstName,
+        lastName: existing.lastName,
+        email: existing.email,
+      }),
+    );
     return existing;
   }
 
-  // Otherwise fetch from Clerk once and create
   const clerkUser = await currentUser();
-
   if (!clerkUser) {
     throw new Error("User not found in Clerk");
   }
@@ -46,111 +91,227 @@ export async function ensureUserExists(clerkId: string) {
     },
   });
 
+  await ensureDefaultWorkspaceForUser(
+    user.id,
+    deriveWorkspaceName({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+    }),
+  );
+
   return user;
 }
 
 /**
- * Check if user can access a folder/workspace
- * Returns true if user is owner or has membership
+ * Resolve which workspace should be active for the user.
+ * If requested workspace is accessible, it is returned.
+ * Otherwise it falls back to earliest membership, creating a default workspace if needed.
  */
-export async function canAccessFolder(
+export async function resolveActiveWorkspaceId(
   userId: string,
-  folderId: string,
-): Promise<boolean> {
-  const folder = await db.folder.findUnique({
-    where: { id: folderId },
-    include: {
-      owner: true,
-      members: {
-        where: { userId },
+  requestedWorkspaceId?: string | null,
+) {
+  if (requestedWorkspaceId) {
+    const hasRequested = await db.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId: requestedWorkspaceId,
+          userId,
+        },
       },
-    },
+      select: { workspaceId: true },
+    });
+    if (hasRequested) {
+      return hasRequested.workspaceId;
+    }
+  }
+
+  const firstMembership = await db.workspaceMember.findFirst({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    select: { workspaceId: true, user: { select: { firstName: true, lastName: true, email: true } } },
   });
 
-  if (!folder) {
-    return false;
+  if (firstMembership) {
+    return firstMembership.workspaceId;
   }
 
-  // Check if user is owner
-  if (folder.ownerId === userId) {
-    return true;
-  }
-
-  // Check if user is a member
-  if (folder.members.length > 0) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Check if user can modify a folder/workspace
- * Returns true if user is owner or has EDITOR/OWNER role
- */
-export async function canModifyFolder(
-  userId: string,
-  folderId: string,
-): Promise<boolean> {
-  const folder = await db.folder.findUnique({
-    where: { id: folderId },
-    include: {
-      owner: true,
-      members: {
-        where: { userId },
-      },
-    },
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { firstName: true, lastName: true, email: true },
   });
 
-  if (!folder) {
-    return false;
-  }
-
-  // Check if user is owner
-  if (folder.ownerId === userId) {
-    return true;
-  }
-
-  // Check if user has EDITOR or OWNER role
-  const member = folder.members[0];
-  if (member && (member.role === "EDITOR" || member.role === "OWNER")) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Get user's role for a folder
- * Returns 'OWNER', 'EDITOR', 'VIEWER', or null
- */
-export async function getUserFolderRole(
-  userId: string,
-  folderId: string,
-): Promise<"OWNER" | "EDITOR" | "VIEWER" | null> {
-  const folder = await db.folder.findUnique({
-    where: { id: folderId },
-    include: {
-      members: {
-        where: { userId },
-      },
-    },
-  });
-
-  if (!folder) {
+  if (!user) {
     return null;
   }
 
-  // Check if user is owner
-  if (folder.ownerId === userId) {
-    return "OWNER";
+  return ensureDefaultWorkspaceForUser(
+    userId,
+    deriveWorkspaceName({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+    }),
+  );
+}
+
+export async function getUserWorkspaceRole(
+  userId: string,
+  workspaceId: string,
+): Promise<WorkspaceRoleValue | null> {
+  const membership = await db.workspaceMember.findUnique({
+    where: {
+      workspaceId_userId: {
+        workspaceId,
+        userId,
+      },
+    },
+    select: { role: true },
+  });
+  return (membership?.role as WorkspaceRoleValue | undefined) ?? null;
+}
+
+export async function canAccessWorkspace(userId: string, workspaceId: string) {
+  const role = await getUserWorkspaceRole(userId, workspaceId);
+  return role !== null;
+}
+
+export async function canEditWorkspace(userId: string, workspaceId: string) {
+  const role = await getUserWorkspaceRole(userId, workspaceId);
+  return role === "MEMBER" || role === "ADMIN";
+}
+
+export async function canAdminWorkspace(userId: string, workspaceId: string) {
+  const role = await getUserWorkspaceRole(userId, workspaceId);
+  return role === "ADMIN";
+}
+
+async function getWorkspaceMember(userId: string, workspaceId: string) {
+  return db.workspaceMember.findUnique({
+    where: {
+      workspaceId_userId: {
+        workspaceId,
+        userId,
+      },
+    },
+    select: {
+      id: true,
+      role: true,
+    },
+  });
+}
+
+async function hasCollectionTeamAccess(
+  collectionId: string,
+  workspaceMemberId: string,
+) {
+  const teamLinks = await db.teamCollection.findMany({
+    where: { collectionId },
+    select: { teamId: true },
+  });
+
+  if (!teamLinks.length) {
+    return true;
   }
 
-  // Check member role
-  const member = folder.members[0];
-  if (member) {
-    return member.role as "OWNER" | "EDITOR" | "VIEWER";
+  const teamIds = teamLinks.map((teamLink) => teamLink.teamId);
+  const memberCount = await db.teamMember.count({
+    where: {
+      memberId: workspaceMemberId,
+      teamId: { in: teamIds },
+    },
+  });
+
+  return memberCount > 0;
+}
+
+export async function canAccessCollection(userId: string, collectionId: string) {
+  const collection = await db.collection.findUnique({
+    where: { id: collectionId },
+    select: { workspaceId: true },
+  });
+
+  if (!collection) {
+    return false;
   }
 
-  return null;
+  const membership = await getWorkspaceMember(userId, collection.workspaceId);
+  if (!membership) {
+    return false;
+  }
+
+  return hasCollectionTeamAccess(collectionId, membership.id);
+}
+
+export async function canEditCollection(userId: string, collectionId: string) {
+  const collection = await db.collection.findUnique({
+    where: { id: collectionId },
+    select: { workspaceId: true },
+  });
+
+  if (!collection) {
+    return false;
+  }
+
+  const membership = await getWorkspaceMember(userId, collection.workspaceId);
+  if (!membership) {
+    return false;
+  }
+  if (membership.role === "VIEWER") {
+    return false;
+  }
+
+  return hasCollectionTeamAccess(collectionId, membership.id);
+}
+
+export async function canAccessScene(userId: string, sceneId: string) {
+  const scene = await db.scene.findUnique({
+    where: { id: sceneId },
+    select: { workspaceId: true, collectionId: true },
+  });
+
+  if (!scene) {
+    return false;
+  }
+
+  const membership = await getWorkspaceMember(userId, scene.workspaceId);
+  if (!membership) {
+    return false;
+  }
+
+  if (!scene.collectionId) {
+    return true;
+  }
+
+  return hasCollectionTeamAccess(scene.collectionId, membership.id);
+}
+
+export async function canEditScene(userId: string, sceneId: string) {
+  const scene = await db.scene.findUnique({
+    where: { id: sceneId },
+    select: { workspaceId: true, collectionId: true },
+  });
+
+  if (!scene) {
+    return false;
+  }
+
+  const membership = await getWorkspaceMember(userId, scene.workspaceId);
+  if (!membership) {
+    return false;
+  }
+  if (membership.role === "VIEWER") {
+    return false;
+  }
+
+  if (!scene.collectionId) {
+    return true;
+  }
+
+  return hasCollectionTeamAccess(scene.collectionId, membership.id);
+}
+
+export function canAccessOwnAccount(requestingUserId: string, targetUserId: string) {
+  return requestingUserId === targetUserId;
 }
