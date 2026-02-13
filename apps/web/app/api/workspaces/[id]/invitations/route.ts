@@ -80,11 +80,18 @@ export async function POST(
         id: true,
         email: true,
         role: true,
+        token: true,
         status: true,
         createdAt: true,
         expiresAt: true,
       },
     });
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_BASE_URL;
+    const invitePath = `/invite/${invitation.token}`;
+    const inviteUrl = appUrl
+      ? `${appUrl.replace(/\/$/, "")}${invitePath}`
+      : invitePath;
 
     await db.workspaceActivityLog.create({
       data: {
@@ -96,11 +103,23 @@ export async function POST(
         metadata: {
           email: invitation.email,
           role: invitation.role,
+          invitePath,
         },
       },
     });
 
-    return NextResponse.json(invitation, { status: 201 });
+    return NextResponse.json(
+      {
+        id: invitation.id,
+        email: invitation.email,
+        role: invitation.role,
+        status: invitation.status,
+        createdAt: invitation.createdAt,
+        expiresAt: invitation.expiresAt,
+        inviteUrl,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("Error creating invitation:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -6,10 +6,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
   ChevronsUpDown,
-  Folder,
   LayoutGrid,
   LogOut,
   Moon,
+  PanelsTopLeft,
   Plus,
   Search,
   Settings,
@@ -76,8 +76,7 @@ export function DashboardSidebar({
   const { theme, setTheme } = useTheme();
 
   const currentWorkspaceId = searchParams.get("workspaceId");
-  const currentCollectionId =
-    searchParams.get("collectionId") || searchParams.get("folderId");
+  const currentCollectionId = searchParams.get("collectionId");
   const currentQuery = searchParams.get("q") || "";
   const isSettingsMode = mode === "settings";
   const isScenePage = !isSettingsMode && pathname?.startsWith("/dashboard/scene");
@@ -147,7 +146,6 @@ export function DashboardSidebar({
     if (requestedWorkspaceId !== fallbackWorkspaceId) {
       const nextParams = new URLSearchParams(searchParams.toString());
       nextParams.set("workspaceId", fallbackWorkspaceId);
-      nextParams.delete("folderId");
       const nextUrl = nextParams.toString()
         ? `${pathname}?${nextParams.toString()}`
         : pathname;
@@ -246,7 +244,6 @@ export function DashboardSidebar({
     const params = new URLSearchParams(searchParams.toString());
     params.set("workspaceId", workspaceId);
     params.delete("collectionId");
-    params.delete("folderId");
     const target = `/dashboard?${params.toString()}`;
     router.push(target);
   };
@@ -258,10 +255,8 @@ export function DashboardSidebar({
     }
     if (collectionId) {
       params.set("collectionId", collectionId);
-      params.delete("folderId");
     } else {
       params.delete("collectionId");
-      params.delete("folderId");
     }
     router.push(`/dashboard?${params.toString()}`);
   };
@@ -504,7 +499,7 @@ export function DashboardSidebar({
                   )}
                   title={sidebarCollapsed ? collection.name : undefined}
                 >
-                  <Folder className="w-4 h-4" />
+                  <PanelsTopLeft className="w-4 h-4" />
                   {!sidebarCollapsed && (
                     <span className="truncate">{collection.name}</span>
                   )}

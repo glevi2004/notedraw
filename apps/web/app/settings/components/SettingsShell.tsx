@@ -4,10 +4,10 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Bot,
+  Boxes,
   CreditCard,
   Download,
   FileUp,
-  FolderOpen,
   Logs,
   Settings,
   User,
@@ -40,7 +40,7 @@ const workspaceItems: SettingsNavItem[] = [
   {
     title: "Teams & Collections",
     href: "/settings/workspace/teams-collections",
-    icon: FolderOpen,
+    icon: Boxes,
     needsWorkspace: true,
   },
   {

@@ -22,7 +22,6 @@ interface SceneCardProps {
     updatedAt: string;
     lastEditedByName?: string | null;
     lastEditedAt?: string;
-    folderId?: string | null;
   };
   onRename?: (sceneId: string) => void;
   onDuplicate?: (sceneId: string) => void;
@@ -37,7 +36,7 @@ interface SceneCardProps {
  * - Wide preview image (16:10 aspect ratio)
  * - Title below the preview
  * - "by [FirstName]" author line
- * - Lock icon for private scenes (no folder)
+ * - Lock icon for private scenes (no collection)
  * - Timestamp badge in the bottom-right of preview
  * - 3-dot menu on hover
  */
@@ -131,8 +130,8 @@ export function SceneCard({
           </p>
         </div>
         
-        {/* Lock Icon - Show for personal scenes (no folder) */}
-        {!((scene.collectionId ?? scene.folderId) || null) && (
+        {/* Lock Icon - Show for personal scenes (no collection) */}
+        {!scene.collectionId && (
           <div className="ml-2 flex-shrink-0 mt-0.5">
             <Lock className="w-4 h-4 text-muted-foreground/50" />
           </div>

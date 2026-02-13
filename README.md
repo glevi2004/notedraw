@@ -46,6 +46,13 @@ cd apps/web
 pnpm dev
 ```
 
+Seed workspace development data:
+
+```bash
+cd apps/web
+pnpm db:seed
+```
+
 ### Building
 
 Build all apps:
@@ -119,4 +126,5 @@ Then access:
 **Status**: In Development
 
 See [PLAN.md](./PLAN.md) for detailed development plan and roadmap.
+See [apps/web/docs/WORKSPACE_REFACTOR.md](./apps/web/docs/WORKSPACE_REFACTOR.md) for workspace + settings architecture and regression checks.
 # notedraw

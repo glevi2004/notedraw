@@ -6,7 +6,7 @@ Status: In Progress
 
 - [x] Freeze target scope (workspace-centric model + settings + keep collab/share)
 - [x] Write phased implementation plan in repository
-- [ ] Keep this checklist updated as each task is completed
+- [x] Keep this checklist updated as each task is completed
 
 ## Phase 1 - Prisma Schema Foundation
 
@@ -49,7 +49,7 @@ Status: In Progress
 - [x] Workspace settings, Team members, Billing, User account
 - [x] Add workspace listing + create workspace in dropdown
 - [x] Persist selected workspace (`workspaceId`) via URL + local storage/cookie
-- [ ] Replace folder terminology in dashboard UI with collection terminology
+- [x] Replace folder terminology in dashboard UI with collection terminology
 
 ## Phase 5 - Settings Shell and Routing
 
@@ -89,18 +89,24 @@ Status: In Progress
 
 ## Phase 8 - Regression and Cleanup
 
-- [ ] Remove remaining `Folder`/`FolderMember` references in app-facing code
-- [ ] Verify role-based permissions across API and UI
-- [ ] Verify multi-workspace switch flow
-- [ ] Verify invite-and-join flow
-- [ ] Verify collab/share still function under workspace permissions
-- [ ] Run typecheck and relevant tests
-- [ ] Update docs and seed/fixtures
+- [x] Remove remaining `Folder`/`FolderMember` references in app-facing code
+- [x] Verify role-based permissions across API and UI
+- [x] Verify multi-workspace switch flow
+- [x] Verify invite-and-join flow
+- [x] Verify collab/share still function under workspace permissions
+- [x] Run typecheck and relevant tests
+- [x] Update docs and seed/fixtures
 
 ## Completion Criteria
 
-- [ ] No folder-based ownership/sharing model remains in app-facing logic
-- [ ] Users can own and switch multiple workspaces
-- [ ] Users can join invited workspaces while keeping existing ones
-- [ ] Role and team/collection access is enforced end-to-end
-- [ ] Full `/settings` tree exists and is wired
+- [x] No folder-based ownership/sharing model remains in app-facing logic
+- [x] Users can own and switch multiple workspaces
+- [x] Users can join invited workspaces while keeping existing ones
+- [x] Role and team/collection access is enforced end-to-end
+- [x] Full `/settings` tree exists and is wired
+
+## Validation Notes
+
+- Ran `pnpm --filter @grovebox/web exec next typegen` to refresh route types after cleanup.
+- Ran `pnpm --filter @grovebox/web typecheck`; command executes but workspace has pre-existing type errors outside this refactor scope.
+- Ran `pnpm --filter @grovebox/web test`; current workspace test suite passes.

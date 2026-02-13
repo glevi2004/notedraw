@@ -46,36 +46,32 @@ async function updateScene(
     title,
     content,
     collectionId,
-    folderId,
   } = body as {
     title?: string;
     content?: any;
     collectionId?: string | null;
-    folderId?: string | null;
   };
 
   const updateData: Prisma.SceneUpdateInput = {};
 
-  const effectiveCollectionId = collectionId !== undefined ? collectionId : folderId;
-
-  if (effectiveCollectionId !== undefined && effectiveCollectionId !== scene.collectionId) {
-    if (effectiveCollectionId === null) {
+  if (collectionId !== undefined && collectionId !== scene.collectionId) {
+    if (collectionId === null) {
       updateData.collection = { disconnect: true };
     } else {
       const targetCollection = await db.collection.findUnique({
-        where: { id: effectiveCollectionId },
+        where: { id: collectionId },
         select: { workspaceId: true },
       });
       if (!targetCollection || targetCollection.workspaceId !== scene.workspaceId) {
         return NextResponse.json({ error: "Collection not found" }, { status: 404 });
       }
 
-      const canEditTarget = await canEditCollection(user.id, effectiveCollectionId);
+      const canEditTarget = await canEditCollection(user.id, collectionId);
       if (!canEditTarget) {
         return NextResponse.json({ error: "Permission denied" }, { status: 403 });
       }
 
-      updateData.collection = { connect: { id: effectiveCollectionId } };
+      updateData.collection = { connect: { id: collectionId } };
     }
   }
 
@@ -150,7 +146,7 @@ async function updateScene(
     data: updateData,
   });
 
-  return NextResponse.json({ ...updatedScene, folderId: updatedScene.collectionId });
+  return NextResponse.json(updatedScene);
 }
 
 export async function GET(
@@ -182,7 +178,7 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({ ...scene, folderId: scene.collectionId });
+    return NextResponse.json(scene);
   } catch (error) {
     console.error("Error fetching scene:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

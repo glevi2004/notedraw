@@ -52,7 +52,7 @@ export default function WorkspaceImportPage() {
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Workspace Import</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Queue import jobs for ZIP archives or folder payloads.
+          Queue import jobs for ZIP archives or collection payloads.
         </p>
       </div>
 

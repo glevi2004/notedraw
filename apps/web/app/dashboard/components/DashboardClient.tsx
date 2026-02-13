@@ -30,7 +30,6 @@ interface Scene {
   content?: unknown;
   workspaceId: string;
   collectionId?: string | null;
-  folderId?: string | null;
   lastEditedAt?: string;
   lastEditedBy?: string;
   lastEditedByName?: string | null;
@@ -65,8 +64,7 @@ export function DashboardClient() {
   const [moveCollectionId, setMoveCollectionId] = useState<string>("none");
 
   const selectedWorkspaceId = searchParams.get("workspaceId");
-  const selectedCollectionId =
-    searchParams.get("collectionId") || searchParams.get("folderId");
+  const selectedCollectionId = searchParams.get("collectionId");
   const rawQuery = searchParams.get("q") || "";
   const normalizedQuery = rawQuery.trim();
   const hasSearch = normalizedQuery.length >= 2;
@@ -236,15 +234,13 @@ export function DashboardClient() {
   const inCollectionScenes =
     hasSearch && selectedCollectionId
       ? scenes.filter(
-          (scene) =>
-            (scene.collectionId ?? scene.folderId ?? null) === selectedCollectionId,
+          (scene) => (scene.collectionId ?? null) === selectedCollectionId,
         )
       : scenes;
   const otherScenes =
     hasSearch && selectedCollectionId
       ? scenes.filter(
-          (scene) =>
-            (scene.collectionId ?? scene.folderId ?? null) !== selectedCollectionId,
+          (scene) => (scene.collectionId ?? null) !== selectedCollectionId,
         )
       : [];
 
@@ -300,7 +296,7 @@ export function DashboardClient() {
         body: JSON.stringify({
           title: `${scene.title} (copy)`,
           workspaceId: scene.workspaceId,
-          collectionId: scene.collectionId ?? scene.folderId ?? null,
+          collectionId: scene.collectionId ?? null,
           content: scene.content || null,
         }),
       });
@@ -310,8 +306,7 @@ export function DashboardClient() {
       }
 
       const newScene = await response.json();
-      const newSceneCollectionId =
-        newScene.collectionId ?? newScene.folderId ?? null;
+      const newSceneCollectionId = newScene.collectionId ?? null;
       if (!selectedCollectionId || newSceneCollectionId === selectedCollectionId) {
         setScenes((prev) => [newScene, ...prev]);
       }
@@ -325,7 +320,7 @@ export function DashboardClient() {
     const scene = scenesById.get(sceneId);
     if (!scene) return;
     setMoveSceneId(sceneId);
-    setMoveCollectionId(scene.collectionId ?? scene.folderId ?? "none");
+    setMoveCollectionId(scene.collectionId ?? "none");
     setMoveDialogOpen(true);
   };
 
@@ -345,14 +340,14 @@ export function DashboardClient() {
       }
 
       const updated = await response.json();
-      const updatedCollectionId = updated.collectionId ?? updated.folderId ?? null;
+      const updatedCollectionId = updated.collectionId ?? null;
       setScenes((prev) => {
         if (selectedCollectionId && updatedCollectionId !== selectedCollectionId) {
           return prev.filter((scene) => scene.id !== moveSceneId);
         }
         return prev.map((scene) =>
           scene.id === moveSceneId
-            ? { ...scene, collectionId: updatedCollectionId, folderId: updatedCollectionId }
+            ? { ...scene, collectionId: updatedCollectionId }
             : scene,
         );
       });

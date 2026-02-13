@@ -28,7 +28,7 @@ async function attachEditorNames(
   return Promise.all(
     scenes.map(async (scene) => {
       if (!scene.lastEditedBy) {
-        return { ...scene, folderId: scene.collectionId, lastEditedByName: null };
+        return { ...scene, lastEditedByName: null };
       }
 
       const editor = await db.user.findUnique({
@@ -40,7 +40,7 @@ async function attachEditorNames(
         ? `${editor.firstName || ""} ${editor.lastName || ""}`.trim() || null
         : null;
 
-      return { ...scene, folderId: scene.collectionId, lastEditedByName: name };
+      return { ...scene, lastEditedByName: name };
     }),
   );
 }
@@ -54,8 +54,7 @@ export async function GET(req: NextRequest) {
 
     const searchParams = req.nextUrl.searchParams;
     const requestedWorkspaceId = searchParams.get("workspaceId");
-    const collectionId =
-      searchParams.get("collectionId") || searchParams.get("folderId");
+    const collectionId = searchParams.get("collectionId");
     const queryRaw = searchParams.get("q") || "";
     const query = queryRaw.trim();
     const hasQuery = query.length >= 2;
@@ -158,13 +157,11 @@ export async function POST(req: NextRequest) {
       content,
       workspaceId: requestedWorkspaceId,
       collectionId,
-      folderId,
     } = body as {
       title?: string;
       content?: unknown;
       workspaceId?: string;
       collectionId?: string | null;
-      folderId?: string | null;
     };
 
     if (!title?.trim()) {
@@ -184,18 +181,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
-    const effectiveCollectionId = collectionId ?? folderId;
-
-    if (effectiveCollectionId) {
+    if (collectionId) {
       const collection = await db.collection.findUnique({
-        where: { id: effectiveCollectionId },
+        where: { id: collectionId },
         select: { workspaceId: true },
       });
       if (!collection || collection.workspaceId !== workspaceId) {
         return NextResponse.json({ error: "Collection not found" }, { status: 404 });
       }
 
-      const canEditTarget = await canEditCollection(user.id, effectiveCollectionId);
+      const canEditTarget = await canEditCollection(user.id, collectionId);
       if (!canEditTarget) {
         return NextResponse.json({ error: "Permission denied" }, { status: 403 });
       }
@@ -205,7 +200,7 @@ export async function POST(req: NextRequest) {
       data: {
         title: title.trim(),
         workspaceId,
-        collectionId: effectiveCollectionId || null,
+        collectionId: collectionId || null,
         createdById: user.id,
         content:
           content === undefined || content === null
@@ -220,10 +215,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(
-      { ...scene, folderId: scene.collectionId },
-      { status: 201 },
-    );
+    return NextResponse.json(scene, { status: 201 });
   } catch (error) {
     console.error("Error creating scene:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
