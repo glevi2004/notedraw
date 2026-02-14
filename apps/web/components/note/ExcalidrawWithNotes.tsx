@@ -271,6 +271,16 @@ export function ExcalidrawWithNotes({
     };
   }, []);
 
+  // External scene updates (including AI patches) can delete a note that is
+  // currently being edited. Reset editor focus to avoid stale overlays.
+  useEffect(() => {
+    if (!editingNoteId) return;
+    const exists = noteElements.some((note) => note.id === editingNoteId);
+    if (!exists) {
+      setEditingNoteId(null);
+    }
+  }, [editingNoteId, noteElements]);
+
   // Convert scene coords to viewport coords
   const sceneToViewport = useCallback(
     (sceneX: number, sceneY: number) => {

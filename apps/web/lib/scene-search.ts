@@ -1,3 +1,5 @@
+import { extractPlainTextFromNoteContent } from "@grovebox/scene-ops";
+
 type SceneSearchInput = {
   title?: string | null;
   content?: unknown;
@@ -45,10 +47,10 @@ export const buildSceneSearchText = ({ title, content }: SceneSearchInput) => {
       parts.push(element.originalText);
     }
     if (element.type === "note" && typeof element.noteContent === "string") {
-      parts.push(element.noteContent);
+      parts.push(extractPlainTextFromNoteContent(element.noteContent));
     }
     if (typeof element.noteContent === "string") {
-      parts.push(element.noteContent);
+      parts.push(extractPlainTextFromNoteContent(element.noteContent));
     }
   }
 
