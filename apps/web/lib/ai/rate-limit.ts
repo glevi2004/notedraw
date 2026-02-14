@@ -10,6 +10,13 @@ type RateLimitOptions = {
 
 const state = new Map<string, RateLimitState>();
 
+const DEFAULT_WINDOW_MS = Number(
+  process.env.AI_SCENE_CHAT_RATE_LIMIT_WINDOW_MS ?? 60_000,
+);
+const DEFAULT_MAX_REQUESTS = Number(
+  process.env.AI_SCENE_CHAT_RATE_LIMIT_MAX ?? 20,
+);
+
 export type RateLimitResult = {
   allowed: boolean;
   retryAfterMs: number;
@@ -20,8 +27,8 @@ export function checkSceneChatRateLimit(
   key: string,
   options: RateLimitOptions = {},
 ): RateLimitResult {
-  const windowMs = options.windowMs ?? 60_000;
-  const maxRequests = options.maxRequests ?? 20;
+  const windowMs = Math.max(1000, options.windowMs ?? DEFAULT_WINDOW_MS);
+  const maxRequests = Math.max(1, options.maxRequests ?? DEFAULT_MAX_REQUESTS);
 
   const now = Date.now();
   const current = state.get(key);
