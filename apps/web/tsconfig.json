@@ -29,7 +29,11 @@
       "@excalidraw/math": ["../../packages/math/src"],
       "@excalidraw/math/*": ["../../packages/math/src/*"],
       "@excalidraw/utils": ["../../packages/utils/src"],
-      "@excalidraw/utils/*": ["../../packages/utils/src/*"]
+      "@excalidraw/utils/*": ["../../packages/utils/src/*"],
+      "@grovebox/ai-contracts": ["../../packages/ai-contracts/src"],
+      "@grovebox/ai-contracts/*": ["../../packages/ai-contracts/src/*"],
+      "@grovebox/scene-ops": ["../../packages/scene-ops/src"],
+      "@grovebox/scene-ops/*": ["../../packages/scene-ops/src/*"]
     }
   },
   "include": [

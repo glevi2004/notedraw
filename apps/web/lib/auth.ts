@@ -240,6 +240,41 @@ export async function canEditScene(userId: string, sceneId: string) {
   return hasCollectionTeamAccess(scene.collectionId, membership.id);
 }
 
+export async function canUseWorkspaceAI(
+  userId: string,
+  workspaceId: string,
+): Promise<boolean> {
+  const [hasAccess, workspace] = await Promise.all([
+    canAccessWorkspace(userId, workspaceId),
+    db.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { aiEnabled: true },
+    }),
+  ]);
+
+  return hasAccess && workspace?.aiEnabled === true;
+}
+
+export async function assertSceneMutationAccess(
+  userId: string,
+  sceneId: string,
+): Promise<void> {
+  const allowed = await canEditScene(userId, sceneId);
+  if (!allowed) {
+    throw new Error("SCENE_MUTATION_ACCESS_DENIED");
+  }
+}
+
+export async function assertWorkspaceAdminAccess(
+  userId: string,
+  workspaceId: string,
+): Promise<void> {
+  const allowed = await canAdminWorkspace(userId, workspaceId);
+  if (!allowed) {
+    throw new Error("WORKSPACE_ADMIN_ACCESS_DENIED");
+  }
+}
+
 export function canAccessOwnAccount(requestingUserId: string, targetUserId: string) {
   return requestingUserId === targetUserId;
 }

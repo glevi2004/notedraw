@@ -1,137 +1,131 @@
 import { NextRequest } from "next/server";
+import { handleSceneChatRequest } from "@/app/api/ai/scene-chat/route";
+import { streamModelTokens, type ModelClientMessage } from "@/lib/ai/model-client";
 
-export async function POST(request: NextRequest) {
-  try {
-    const { messages } = await request.json();
+const DEPRECATION_HEADERS = {
+  "x-notedraw-deprecated": "true",
+  "x-notedraw-deprecation-message": "Use /api/ai/scene-chat",
+};
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "OpenRouter API key not configured" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-        "X-Title": "Notedraw Scene Assistant",
-      },
-      body: JSON.stringify({
-        model: "x-ai/grok-4.1-fast",
-        messages: [
-          {
-            role: "system",
-            content: `You are a helpful AI assistant for Notedraw, a visual note-taking and diagramming application.
+const LEGACY_SYSTEM_PROMPT = `You are a helpful AI assistant for Notedraw, a visual note-taking and diagramming application.
 You help users understand, organize, and improve their diagrams and visual notes.
 Be concise, helpful, and provide actionable suggestions when relevant.
-If you don't know the answer, say so honestly.`,
-          },
-          ...messages,
-        ],
-        stream: true,
-      }),
-    });
+If you don't know the answer, say so honestly.`;
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error("OpenRouter error:", error);
-      return new Response(
-        JSON.stringify({ error: "Failed to get response from AI" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+type LegacyMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+function toLegacyMessages(body: unknown): LegacyMessage[] {
+  if (!body || typeof body !== "object") return [];
+  const value = body as { messages?: unknown[] };
+  if (!Array.isArray(value.messages)) return [];
+
+  return value.messages
+    .map((message) => {
+      if (!message || typeof message !== "object") return null;
+      const msg = message as { role?: unknown; content?: unknown };
+      if (
+        (msg.role !== "system" && msg.role !== "user" && msg.role !== "assistant") ||
+        typeof msg.content !== "string"
+      ) {
+        return null;
+      }
+      return {
+        role: msg.role,
+        content: msg.content,
+      };
+    })
+    .filter((message): message is LegacyMessage => Boolean(message));
+}
+
+function hasNewRoutePayload(
+  body: unknown,
+): body is {
+  workspaceId: string;
+  sceneId: string;
+  messages: { role: string; content: string }[];
+  mode?: "chat" | "mutate";
+  allowMutations?: boolean;
+} {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  return typeof value.workspaceId === "string" && typeof value.sceneId === "string";
+}
+
+function createLegacyStream(messages: LegacyMessage[]): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      const modelMessages: ModelClientMessage[] = [
+        { role: "system", content: LEGACY_SYSTEM_PROMPT },
+        ...messages,
+      ];
+
+      try {
+        for await (const token of streamModelTokens(modelMessages)) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: token })}\n\n`));
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Sorry, I encountered an error. Please try again.";
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: message })}\n\n`));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+}
+
+function mergeHeaders(base: HeadersInit): Headers {
+  const headers = new Headers(base);
+  for (const [key, value] of Object.entries(DEPRECATION_HEADERS)) {
+    headers.set(key, value);
+  }
+  return headers;
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  try {
+    const body = await request.json();
+
+    if (hasNewRoutePayload(body)) {
+      const normalizedPayload = {
+        ...body,
+        mode: body.mode ?? "chat",
+        allowMutations: body.allowMutations ?? false,
+      };
+      const response = await handleSceneChatRequest(request, normalizedPayload);
+      return new Response(response.body, {
+        status: response.status,
+        headers: mergeHeaders(response.headers),
+      });
     }
 
-    // Create a ReadableStream to forward the response
-    const stream = new ReadableStream({
-      async start(controller) {
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
+    const messages = toLegacyMessages(body);
+    if (!messages.length) {
+      return new Response(JSON.stringify({ error: "Invalid request payload." }), {
+        status: 400,
+        headers: mergeHeaders({ "Content-Type": "application/json" }),
+      });
+    }
 
-        if (!reader) {
-          controller.close();
-          return;
-        }
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              // Process any remaining buffer
-              if (buffer.trim()) {
-                const lines = buffer.split("\n");
-                for (const line of lines) {
-                  if (line.startsWith("data: ")) {
-                    const data = line.slice(6).trim();
-                    if (data && data !== "[DONE]") {
-                      try {
-                        const parsed = JSON.parse(data);
-                        const content = parsed.choices?.[0]?.delta?.content;
-                        if (content) {
-                          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`));
-                        }
-                      } catch (e) {
-                        // Skip invalid JSON
-                      }
-                    }
-                  }
-                }
-              }
-              break;
-            }
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            // Keep the last incomplete line in buffer
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6).trim();
-                if (data === "[DONE]") {
-                  controller.close();
-                  return;
-                }
-
-                if (data) {
-                  try {
-                    const parsed = JSON.parse(data);
-                    const content = parsed.choices?.[0]?.delta?.content;
-                    if (content) {
-                      controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`));
-                    }
-                  } catch (e) {
-                    // Skip invalid JSON
-                  }
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error("Stream error:", error);
-          controller.error(error);
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
+    const stream = createLegacyStream(messages);
     return new Response(stream, {
-      headers: {
+      headers: mergeHeaders({
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-      },
+        Connection: "keep-alive",
+      }),
     });
   } catch (error) {
-    console.error("Scene chat error:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    const message = error instanceof Error ? error.message : "Unknown request error";
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: mergeHeaders({ "Content-Type": "application/json" }),
+    });
   }
 }
