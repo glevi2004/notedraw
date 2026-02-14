@@ -11,6 +11,10 @@
     "jsx": "react-jsx",
     "emitDeclarationOnly": true,
     "paths": {
+      "@grovebox/ai-contracts": ["./ai-contracts/src/index.ts"],
+      "@grovebox/ai-contracts/*": ["./ai-contracts/src/*"],
+      "@grovebox/scene-ops": ["./scene-ops/src/index.ts"],
+      "@grovebox/scene-ops/*": ["./scene-ops/src/*"],
       "@excalidraw/common": ["./common/src/index.ts"],
       "@excalidraw/common/*": ["./common/src/*"],
       "@excalidraw/element": ["./element/src/index.ts"],
