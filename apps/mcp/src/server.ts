@@ -912,6 +912,84 @@ However, if the user wants to edit something on this diagram "${checkpointId}", 
   );
 
   // ============================================================
+  // Tool 3b: export_to_notedraw_share (app-only Notedraw export)
+  // ============================================================
+  registerAppTool(server,
+    "export_to_notedraw_share",
+    {
+      description: "Upload diagram to Notedraw and return a shareable URL.",
+      inputSchema: z.object({
+        payload: z.string().describe("Serialized Excalidraw JSON payload."),
+        workspaceId: z.string().optional(),
+        sceneId: z.string().optional(),
+      }),
+      _meta: { ui: { visibility: ["app"] } },
+    },
+    async ({ payload, workspaceId, sceneId }): Promise<CallToolResult> => {
+      if (payload.length > MAX_INPUT_BYTES) {
+        return {
+          content: [{ type: "text", text: `Export data exceeds ${MAX_INPUT_BYTES} byte limit.` }],
+          isError: true,
+        };
+      }
+
+      const endpoint = process.env.NOTEDRAW_SHARE_EXPORT_URL;
+      if (!endpoint) {
+        return {
+          content: [{
+            type: "text",
+            text: "Notedraw export is not configured (missing NOTEDRAW_SHARE_EXPORT_URL).",
+          }],
+          isError: true,
+        };
+      }
+
+      try {
+        const token = process.env.NOTEDRAW_SHARE_EXPORT_TOKEN;
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            payload,
+            workspaceId: workspaceId ?? null,
+            sceneId: sceneId ?? null,
+          }),
+        });
+
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(`Notedraw export failed (${response.status}): ${body}`);
+        }
+
+        const result = (await response.json()) as {
+          url?: string;
+          shareId?: string;
+        };
+
+        if (!result.url) {
+          throw new Error("Notedraw export response did not include a URL.");
+        }
+
+        return {
+          content: [{ type: "text", text: result.url }],
+          structuredContent: {
+            url: result.url,
+            shareId: result.shareId,
+          },
+        };
+      } catch (err) {
+        return {
+          content: [{ type: "text", text: `Notedraw export failed: ${(err as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ============================================================
   // Tool 4: save_checkpoint (private — widget only, for user edits)
   // ============================================================
   registerAppTool(server,

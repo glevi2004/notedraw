@@ -151,7 +151,49 @@ async function shareToExcalidraw(api: any, app: App) {
   }
 }
 
-function ShareButton({ onConfirm }: { onConfirm: () => Promise<void> }) {
+async function shareToNotedraw(api: any, app: App) {
+  try {
+    const elements = api.getSceneElements();
+    const appState = api.getAppState();
+    const files = api.getFiles();
+    if (!elements?.length) return;
+
+    const payload = serializeAsJSON(elements, appState, files, "database");
+    const result = await app.callServerTool({
+      name: "export_to_notedraw_share",
+      arguments: { payload },
+    });
+
+    if (result.isError) {
+      fsLog(`notedraw export failed: ${JSON.stringify(result.content)}`);
+      return;
+    }
+
+    const url = (result.content[0] as any)?.text;
+    if (!url) return;
+    await app.openLink({ url });
+  } catch (err) {
+    fsLog(`shareToNotedraw error: ${err}`);
+  }
+}
+
+function ExportActionButton({
+  idleLabel,
+  pendingLabel,
+  title,
+  modalTitle,
+  modalText,
+  confirmLabel,
+  onConfirm,
+}: {
+  idleLabel: string;
+  pendingLabel: string;
+  title: string;
+  modalTitle: string;
+  modalText: string;
+  confirmLabel: string;
+  onConfirm: () => Promise<void>;
+}) {
   const [state, setState] = useState<"idle" | "confirm" | "uploading">("idle");
 
   const handleConfirm = async () => {
@@ -168,27 +210,27 @@ function ShareButton({ onConfirm }: { onConfirm: () => Promise<void> }) {
       <button
         className="standalone"
         style={{ display: "flex", alignItems: "center", gap: 5, width: "auto", padding: "0 10px", marginRight: -8 }}
-        title="Export to Excalidraw"
+        title={title}
         disabled={state === "uploading"}
         onClick={() => setState("confirm")}
       >
         <ExternalLinkIcon />
-        <span style={{ fontSize: "0.75rem", fontWeight: 400 }}>{state === "uploading" ? "Exporting…" : "Export"}</span>
+        <span style={{ fontSize: "0.75rem", fontWeight: 400 }}>
+          {state === "uploading" ? pendingLabel : idleLabel}
+        </span>
       </button>
 
       {state === "confirm" && (
         <div className="export-modal-overlay" onClick={() => setState("idle")}>
           <div className="Island export-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="export-modal-title">Export to Excalidraw</h3>
-            <p className="export-modal-text">
-              This will upload your diagram to excalidraw.com and open it in a new tab.
-            </p>
+            <h3 className="export-modal-title">{modalTitle}</h3>
+            <p className="export-modal-text">{modalText}</p>
             <div className="export-modal-actions">
               <button className="standalone" onClick={() => setState("idle")}>
                 Cancel
               </button>
               <button className="standalone export-modal-confirm" onClick={handleConfirm}>
-                Export
+                {confirmLabel}
               </button>
             </div>
           </div>
@@ -768,11 +810,30 @@ function ExcalidrawApp() {
             theme="light"
             onChange={(els) => onEditorChange(app, els)}
             renderTopRightUI={() => (
-              <ShareButton
-                onConfirm={async () => {
-                  if (excalidrawApi) await shareToExcalidraw(excalidrawApi, app);
-                }}
-              />
+              <>
+                <ExportActionButton
+                  idleLabel="Export"
+                  pendingLabel="Exporting…"
+                  title="Export to Excalidraw"
+                  modalTitle="Export to Excalidraw"
+                  modalText="This will upload your diagram to excalidraw.com and open it in a new tab."
+                  confirmLabel="Export"
+                  onConfirm={async () => {
+                    if (excalidrawApi) await shareToExcalidraw(excalidrawApi, app);
+                  }}
+                />
+                <ExportActionButton
+                  idleLabel="Share"
+                  pendingLabel="Sharing…"
+                  title="Share to Notedraw"
+                  modalTitle="Share to Notedraw"
+                  modalText="This will upload your diagram using Notedraw export settings and open the generated share link."
+                  confirmLabel="Share"
+                  onConfirm={async () => {
+                    if (excalidrawApi) await shareToNotedraw(excalidrawApi, app);
+                  }}
+                />
+              </>
             )}
           />
         </div>

@@ -80,8 +80,8 @@ export const McpToolInputSchemaMap = {
     json: z.string().min(1),
   }),
   export_to_notedraw_share: z.object({
-    workspaceId: z.string().min(1),
-    sceneId: z.string().min(1),
+    workspaceId: z.string().min(1).optional(),
+    sceneId: z.string().min(1).optional(),
     payload: z.string().optional(),
   }),
   upload_scene_asset: z.object({

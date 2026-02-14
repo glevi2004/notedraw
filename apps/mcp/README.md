@@ -1,6 +1,6 @@
-# Excalidraw MCP App Server
+# Notedraw MCP App Server
 
-MCP server that streams hand-drawn Excalidraw diagrams with smooth viewport camera control and interactive fullscreen editing.
+MCP server that preserves Excalidraw MCP preview/edit behavior and adds Notedraw-specific export/tooling extensions.
 
 ![Demo](docs/demo.gif)
 
@@ -49,6 +49,13 @@ Restart Claude Desktop.
 Example prompts:
 - "Draw a cute cat using excalidraw"
 - "Draw an architecture diagram showing a user connecting to an API server which talks to a database"
+
+## Notedraw Share Export
+
+`export_to_notedraw_share` is app-only and requires backend configuration:
+
+- `NOTEDRAW_SHARE_EXPORT_URL`: HTTPS endpoint that accepts `{ payload, workspaceId?, sceneId? }` and returns `{ url, shareId? }`
+- `NOTEDRAW_SHARE_EXPORT_TOKEN` (optional): bearer token sent as `Authorization: Bearer ...`
 
 ## What are MCP Apps and how can I build one?
 
