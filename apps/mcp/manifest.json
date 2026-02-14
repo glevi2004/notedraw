@@ -1,0 +1,44 @@
+{
+  "manifest_version": "0.3",
+  "name": "notedraw-mcp-app",
+  "display_name": "Notedraw",
+  "version": "0.1.0",
+  "description": "Notedraw MCP App server with Excalidraw-compatible preview/edit parity and workspace scene tools.",
+  "long_description": "An MCP App server for Notedraw that preserves Excalidraw MCP preview/edit parity (read_me + create_view + checkpoints + export) and adds workspace-scoped scene tools for internal assistant orchestration.",
+  "author": {
+    "name": "Grovebox",
+    "url": "https://github.com/grovebox"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/grovebox/notedraw.git"
+  },
+  "homepage": "https://github.com/grovebox/notedraw",
+  "icon": "docs/logo.png",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js", "--stdio"]
+    }
+  },
+  "tools": [
+    {
+      "name": "read_me",
+      "description": "Returns the Excalidraw element format reference with color palettes, examples, and tips. Call this before using create_view."
+    },
+    {
+      "name": "create_view",
+      "description": "Renders a hand-drawn diagram using Excalidraw elements with streaming draw-on animations."
+    }
+  ],
+  "keywords": ["excalidraw", "diagrams", "drawing", "visualization", "mcp-app"],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  },
+  "license": "MIT"
+}

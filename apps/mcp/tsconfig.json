@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@grovebox/ai-contracts": ["../../packages/ai-contracts/src/index.ts"],
+      "@grovebox/ai-contracts/*": ["../../packages/ai-contracts/src/*"],
+      "@grovebox/scene-ops": ["../../packages/scene-ops/src/index.ts"],
+      "@grovebox/scene-ops/*": ["../../packages/scene-ops/src/*"]
+    },
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noImplicitAny": false,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src", "server.ts"]
+}

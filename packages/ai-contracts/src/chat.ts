@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { SceneChatResponseEventSchema } from "./events";
 
 export const SceneChatMessageRoleSchema = z.enum([
   "system",
