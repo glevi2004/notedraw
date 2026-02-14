@@ -50,6 +50,7 @@ export default async function ScenePage({
 
   return (
     <SceneEditor
+      workspaceId={scene.workspaceId}
       sceneId={scene.id}
       title={scene.title}
       initialContent={scene.content}

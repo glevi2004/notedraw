@@ -13,7 +13,14 @@ import { CollabController, type CollabState } from "@/collab/CollabController";
 import { getCollaborationLinkData } from "@/collab/data";
 import { createShareSnapshot } from "@/collab/share";
 import { ShareDialog } from "@/components/share/ShareDialog";
-import { SceneAIProvider, useSceneAI, SceneChatInput, SceneChatBubble } from "@/components/ai";
+import {
+  SceneAIProvider,
+  useSceneAI,
+  SceneChatInput,
+  SceneChatBubble,
+  applyScenePatchToEditor,
+  type ScenePatchHandler,
+} from "@/components/ai";
 import { cn } from "@/lib/utils";
 
 // Dynamically import Excalidraw components to avoid SSR issues
@@ -26,6 +33,7 @@ const ExcalidrawWithNotes = dynamic(
 );
 
 interface SceneEditorProps {
+  workspaceId: string;
   sceneId: string;
   title?: string;
   initialContent: unknown;
@@ -85,6 +93,7 @@ function SceneAIButton() {
 
 // Inner component that uses AI context
 function SceneEditorInner({
+  workspaceId,
   sceneId,
   initialContent,
 }: SceneEditorProps) {
@@ -224,6 +233,27 @@ function SceneEditorInner({
     [collab, handleChange],
   );
 
+  const handleAiScenePatch = useCallback<ScenePatchHandler>(
+    async (patch) => {
+      const api = excalidrawRef.current;
+      if (!api) {
+        return {
+          ok: false,
+          error: "Editor is not ready to apply scene patch.",
+        };
+      }
+
+      const applied = applyScenePatchToEditor(api, patch);
+      if (!applied.ok) {
+        return { ok: false, error: applied.error };
+      }
+
+      handleSceneChange(applied.elements);
+      return { ok: true };
+    },
+    [handleSceneChange],
+  );
+
   useEffect(() => {
     if (!excalidrawAPI) return;
     const controller = new CollabController({
@@ -321,7 +351,11 @@ function SceneEditorInner({
   }, [sceneId, initialContent, flushPendingSave]);
 
   return (
-    <>
+    <SceneAIProvider
+      workspaceId={workspaceId}
+      sceneId={sceneId}
+      onScenePatch={handleAiScenePatch}
+    >
       <div className="h-full w-full flex flex-col bg-background relative">
         {/* Editor */}
         <div className="flex-1 relative">
@@ -385,15 +419,11 @@ function SceneEditorInner({
           )}
         </div>
       </div>
-    </>
+    </SceneAIProvider>
   );
 }
 
-// Main exported component that wraps with AI Provider
+// Main exported component.
 export function SceneEditor(props: SceneEditorProps) {
-  return (
-    <SceneAIProvider>
-      <SceneEditorInner {...props} />
-    </SceneAIProvider>
-  );
+  return <SceneEditorInner {...props} />;
 }

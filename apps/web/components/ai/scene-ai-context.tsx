@@ -1,12 +1,13 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
+import { streamSceneChatEvents } from "./scene-ai-events";
+import type {
+  ChatMessage,
+  SceneChatActivity,
+  ScenePatchHandler,
+} from "./scene-chat-types";
 
 interface SceneAIContextType {
   showChatBubble: boolean;
@@ -15,6 +16,7 @@ interface SceneAIContextType {
   setShowInput: (show: boolean) => void;
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  activities: SceneChatActivity[];
   inputValue: string;
   setInputValue: (value: string) => void;
   isLoading: boolean;
@@ -24,7 +26,20 @@ interface SceneAIContextType {
   closeChat: () => void;
 }
 
+type SceneAIProviderProps = {
+  children: ReactNode;
+  workspaceId: string;
+  sceneId: string;
+  onScenePatch?: ScenePatchHandler;
+};
+
 const SceneAIContext = createContext<SceneAIContextType | undefined>(undefined);
+
+const createMessageId = (): string =>
+  `msg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+const createActivityId = (): string =>
+  `act_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
 const aiSuggestions = [
   "Help me organize this diagram",
@@ -34,12 +49,42 @@ const aiSuggestions = [
 
 export { aiSuggestions };
 
-export function SceneAIProvider({ children }: { children: ReactNode }) {
+export function SceneAIProvider({
+  children,
+  workspaceId,
+  sceneId,
+  onScenePatch,
+}: SceneAIProviderProps) {
   const [showChatBubble, setShowChatBubble] = useState(false);
-  const [showInput, setShowInput] = useState(true); // Show input by default on first load
+  const [showInput, setShowInput] = useState(true);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activities, setActivities] = useState<SceneChatActivity[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const appendActivity = useCallback(
+    (type: SceneChatActivity["type"], label: string, detail?: string) => {
+      setActivities((prev) => [
+        ...prev,
+        {
+          id: createActivityId(),
+          type,
+          label,
+          detail,
+          createdAt: Date.now(),
+        },
+      ]);
+    },
+    [],
+  );
+
+  const updateAssistantMessage = useCallback((assistantId: string, content: string) => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === assistantId ? { ...message, content } : message,
+      ),
+    );
+  }, []);
 
   const openChat = useCallback(() => {
     setShowInput(true);
@@ -49,135 +94,149 @@ export function SceneAIProvider({ children }: { children: ReactNode }) {
   const closeChat = useCallback(() => {
     setShowInput(false);
     setShowChatBubble(false);
-    // Note: we don't reset hasSentMessage here - it persists for the session
   }, []);
 
-  const sendMessage = useCallback(async (message: string) => {
-    if (!message.trim() || isLoading) return;
+  const sendMessage = useCallback(
+    async (message: string) => {
+      if (!message.trim() || isLoading) return;
 
-    const userMessage: ChatMessage = { role: "user", content: message.trim() };
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue("");
-    setIsLoading(true);
-    
-    // Close input and show chat bubble after first message
-    setShowInput(false);
-    setShowChatBubble(true);
+      const trimmed = message.trim();
+      const userMessage: ChatMessage = {
+        id: createMessageId(),
+        role: "user",
+        content: trimmed,
+      };
+      const assistantId = createMessageId();
+      const assistantMessage: ChatMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+      };
 
-    // Add empty assistant message for streaming
-    const assistantMessage: ChatMessage = { role: "assistant", content: "" };
-    setMessages((prev) => [...prev, assistantMessage]);
-
-    try {
-      const response = await fetch("/api/scene-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, userMessage] }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to get response");
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) {
-        throw new Error("No response body");
-      }
-
-      let accumulatedContent = "";
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          // Process any remaining buffer
-          if (buffer.trim()) {
-            const lines = buffer.split("\n");
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6).trim();
-                if (data && data !== "[DONE]") {
-                  try {
-                    const parsed = JSON.parse(data);
-                    const content = parsed.content;
-                    if (content) {
-                      accumulatedContent += content;
-                      setMessages((prev) => {
-                        const newMessages = [...prev];
-                        newMessages[newMessages.length - 1] = {
-                          role: "assistant",
-                          content: accumulatedContent,
-                        };
-                        return newMessages;
-                      });
-                    }
-                  } catch (e) {
-                    // Skip invalid JSON
-                  }
-                }
-              }
-            }
-          }
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        // Keep the last incomplete line in buffer
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") break;
-
-            if (data) {
-              try {
-                const parsed = JSON.parse(data);
-                const content = parsed.content;
-                if (content) {
-                  accumulatedContent += content;
-                  setMessages((prev) => {
-                    const newMessages = [...prev];
-                    newMessages[newMessages.length - 1] = {
-                      role: "assistant",
-                      content: accumulatedContent,
-                    };
-                    return newMessages;
-                  });
-                }
-              } catch (e) {
-                // Skip invalid JSON
-              }
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Chat error:", error);
+      let requestMessages: ChatMessage[] = [];
       setMessages((prev) => {
-        const newMessages = [...prev];
-        newMessages[newMessages.length - 1] = {
-          role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
-        };
-        return newMessages;
+        requestMessages = [...prev, userMessage];
+        return [...requestMessages, assistantMessage];
       });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading, messages]);
 
-  return (
-    <SceneAIContext.Provider value={{ 
-      showChatBubble, 
+      setInputValue("");
+      setIsLoading(true);
+      setShowInput(false);
+      setShowChatBubble(true);
+      setActivities([]);
+
+      let assistantText = "";
+
+      try {
+        const response = await fetch("/api/ai/scene-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workspaceId,
+            sceneId,
+            mode: "mutate",
+            allowMutations: true,
+            messages: requestMessages.map(({ role, content }) => ({ role, content })),
+          }),
+        });
+
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as
+            | { error?: string }
+            | null;
+          throw new Error(body?.error || `Scene chat request failed (${response.status})`);
+        }
+
+        if (!response.body) {
+          throw new Error("Scene chat response did not include a stream.");
+        }
+
+        for await (const event of streamSceneChatEvents(response.body)) {
+          if (event.type === "token") {
+            assistantText += event.content;
+            updateAssistantMessage(assistantId, assistantText);
+            continue;
+          }
+
+          if (event.type === "tool_start") {
+            appendActivity(
+              "tool_start",
+              `Running ${event.toolName}`,
+              JSON.stringify(event.input),
+            );
+            continue;
+          }
+
+          if (event.type === "tool_result") {
+            appendActivity(
+              "tool_result",
+              `${event.toolName} completed`,
+              JSON.stringify(event.output),
+            );
+            continue;
+          }
+
+          if (event.type === "scene_patch") {
+            appendActivity(
+              "scene_patch",
+              `Applying scene patch (${event.patch.ops.length} ops)`,
+              `Scene version ${event.sceneVersion}`,
+            );
+            if (onScenePatch) {
+              const applied = await onScenePatch(event.patch, event.sceneVersion);
+              if (!applied.ok) {
+                appendActivity(
+                  "error",
+                  "Scene patch rejected",
+                  applied.error || "Patch apply failed",
+                );
+              }
+            }
+            continue;
+          }
+
+          if (event.type === "warning") {
+            appendActivity("warning", event.message, event.code);
+            continue;
+          }
+
+          if (event.type === "error") {
+            appendActivity("error", event.message, event.code);
+            if (!assistantText) {
+              assistantText = event.message;
+              updateAssistantMessage(assistantId, assistantText);
+            }
+            continue;
+          }
+        }
+      } catch (error) {
+        const messageText =
+          error instanceof Error
+            ? error.message
+            : "Sorry, I encountered an error. Please try again.";
+
+        appendActivity("error", messageText);
+
+        if (!assistantText) {
+          assistantText = messageText;
+          updateAssistantMessage(assistantId, assistantText);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [appendActivity, isLoading, onScenePatch, sceneId, updateAssistantMessage, workspaceId],
+  );
+
+  const value = useMemo<SceneAIContextType>(
+    () => ({
+      showChatBubble,
       setShowChatBubble,
       showInput,
       setShowInput,
       messages,
       setMessages,
+      activities,
       inputValue,
       setInputValue,
       isLoading,
@@ -185,10 +244,21 @@ export function SceneAIProvider({ children }: { children: ReactNode }) {
       sendMessage,
       openChat,
       closeChat,
-    }}>
-      {children}
-    </SceneAIContext.Provider>
+    }),
+    [
+      activities,
+      closeChat,
+      inputValue,
+      isLoading,
+      messages,
+      openChat,
+      sendMessage,
+      showChatBubble,
+      showInput,
+    ],
   );
+
+  return <SceneAIContext.Provider value={value}>{children}</SceneAIContext.Provider>;
 }
 
 export function useSceneAI() {

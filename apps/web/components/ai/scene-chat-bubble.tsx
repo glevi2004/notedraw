@@ -37,6 +37,7 @@ export function SceneChatBubble() {
     setShowChatBubble,
     setShowInput,
     messages,
+    activities,
     inputValue,
     setInputValue,
     isLoading,
@@ -234,9 +235,9 @@ export function SceneChatBubble() {
                 </div>
               ) : (
                 <>
-                  {messages.map((message, index) => (
+                  {messages.map((message) => (
                     <div
-                      key={index}
+                      key={message.id}
                       className={cn(
                         "flex",
                         message.role === "user" ? "justify-end" : "justify-start",
@@ -260,6 +261,19 @@ export function SceneChatBubble() {
                       </div>
                     </div>
                   ))}
+                  {activities.length > 0 ? (
+                    <div className="space-y-1 rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Tool Activity
+                      </div>
+                      {activities.map((activity) => (
+                        <div key={activity.id} className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{activity.label}</span>
+                          {activity.detail ? ` • ${activity.detail}` : ""}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   {isLoading && (
                     <div className="flex justify-start">
                       <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-muted border border-border px-4 py-3">
