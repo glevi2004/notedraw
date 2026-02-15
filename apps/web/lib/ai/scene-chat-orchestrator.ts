@@ -13,6 +13,7 @@ import {
   streamModelTokens,
   type ModelClientMessage,
 } from "./model-client";
+import { SCENE_PATCH_REFERENCE } from "./scene-patch-reference";
 import { streamSceneChatEvents } from "./streaming";
 
 export type SceneChatRequestContext = {
@@ -149,14 +150,7 @@ const buildPatchPlanMessages = (params: {
   return [
     {
       role: "system",
-      content: [
-        "You generate Notedraw scene mutations.",
-        "Return strictly JSON with shape:",
-        '{"patch": ScenePatch | null, "rationale": string}',
-        "If no scene change is needed, set patch to null.",
-        "When changing notes from user prose, prefer note_from_text or note_from_markdown ops.",
-        "Never include markdown fences.",
-      ].join("\n"),
+      content: SCENE_PATCH_REFERENCE,
     },
     {
       role: "user",

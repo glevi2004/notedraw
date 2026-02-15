@@ -1,6 +1,7 @@
 "use client";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { applyScenePatch } from "@grovebox/scene-ops";
 import type { ScenePatch } from "@grovebox/ai-contracts";
 import type { SceneElement, SceneState } from "@grovebox/scene-ops";
@@ -79,6 +80,35 @@ const attachExcalidrawVersions = (
   });
 };
 
+/**
+ * Resolve `label` shorthand on shapes into proper Excalidraw bound-text elements.
+ * Mirrors the MCP widget's convertRawElements (apps/mcp/src/mcp-app.tsx:48-58).
+ */
+const convertLabelShorthand = (elements: SceneElement[]): SceneElement[] => {
+  const hasLabels = elements.some(
+    (el) => "label" in el && (el as Record<string, unknown>).label != null,
+  );
+  if (!hasLabels) return elements;
+
+  const withDefaults = elements.map((el) => {
+    const raw = el as Record<string, unknown>;
+    if (!raw.label) return el;
+    return {
+      ...el,
+      label: {
+        textAlign: "center",
+        verticalAlign: "middle",
+        ...(raw.label as Record<string, unknown>),
+      },
+    };
+  });
+
+  return convertToExcalidrawElements(
+    withDefaults as Parameters<typeof convertToExcalidrawElements>[0],
+    { regenerateIds: false },
+  ) as unknown as SceneElement[];
+};
+
 const buildCurrentSceneState = (api: ExcalidrawImperativeAPI): SceneState => ({
   elements: (
     api.getSceneElements() as unknown as ExcalidrawElementLike[]
@@ -101,9 +131,11 @@ export const applyScenePatchToEditor = (
     };
   }
 
+  const convertedElements = convertLabelShorthand(applied.scene.elements);
+
   const versionedElements = attachExcalidrawVersions(
     current.elements as ExcalidrawElementLike[],
-    applied.scene.elements,
+    convertedElements,
   );
 
   api.updateScene({

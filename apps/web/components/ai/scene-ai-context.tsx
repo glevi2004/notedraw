@@ -113,11 +113,8 @@ export function SceneAIProvider({
         content: "",
       };
 
-      let requestMessages: ChatMessage[] = [];
-      setMessages((prev) => {
-        requestMessages = [...prev, userMessage];
-        return [...requestMessages, assistantMessage];
-      });
+      const requestMessages = [...messages, userMessage];
+      setMessages([...requestMessages, assistantMessage]);
 
       setInputValue("");
       setIsLoading(true);
@@ -142,9 +139,14 @@ export function SceneAIProvider({
 
         if (!response.ok) {
           const body = (await response.json().catch(() => null)) as
-            | { error?: string }
+            | { error?: string; code?: string; requestId?: string }
             | null;
-          throw new Error(body?.error || `Scene chat request failed (${response.status})`);
+          const details = [body?.code, body?.requestId].filter(Boolean).join(" / ");
+          throw new Error(
+            `${body?.error || `Scene chat request failed (${response.status})`}${
+              details ? ` (${details})` : ""
+            }`,
+          );
         }
 
         if (!response.body) {
@@ -225,7 +227,15 @@ export function SceneAIProvider({
         setIsLoading(false);
       }
     },
-    [appendActivity, isLoading, onScenePatch, sceneId, updateAssistantMessage, workspaceId],
+    [
+      appendActivity,
+      isLoading,
+      messages,
+      onScenePatch,
+      sceneId,
+      updateAssistantMessage,
+      workspaceId,
+    ],
   );
 
   const value = useMemo<SceneAIContextType>(
