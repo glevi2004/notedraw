@@ -2,12 +2,22 @@
 
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
+import { FooterRight } from '@excalidraw/excalidraw';
 import { useTheme } from '@/context/ThemeContext';
-import { ArrowUp, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { SignUpButton, SignedOut, SignedIn } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import {
+  SceneAIContext,
+  useSceneAI,
+  SceneChatInput,
+  SceneChatBubble,
+} from '@/components/ai';
+import type { SceneAIContextType } from '@/components/ai';
+import type { ChatMessage, SceneChatActivity } from '@/components/ai/scene-chat-types';
+import { cn } from '@/lib/utils';
 
 const ExcalidrawWithNotes = dynamic(
   async () => {
@@ -28,6 +38,9 @@ const mockResponses = [
   "Tip: Use different colors to categorize elements — it makes diagrams much more scannable.",
   "Your scene is coming together! Try using frames to organize related elements into groups.",
 ];
+
+const LIMIT_MESSAGE =
+  "You've used all 5 free AI requests. Sign up to unlock unlimited AI assistance for your scenes.";
 
 function getStoredScene(): { elements: any[]; appState: any; files: any } | null {
   if (typeof window === 'undefined') return null;
@@ -53,140 +66,171 @@ function setAiCount(count: number) {
   } catch {}
 }
 
-interface DemoChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-}
+const createMessageId = (): string =>
+  `msg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
-function DemoChatInput({
-  messages,
-  onSend,
-}: {
-  messages: DemoChatMessage[];
-  onSend: (msg: string) => void;
-}) {
-  const [value, setValue] = useState('');
+/**
+ * Provides the same SceneAIContext that SceneChatInput and SceneChatBubble
+ * consume, but with mock AI responses and a 5-request limit instead of
+ * hitting the real API.
+ */
+function DemoSceneAIProvider({ children }: { children: React.ReactNode }) {
+  const [showChatBubble, setShowChatBubble] = useState(false);
+  const [showInput, setShowInput] = useState(true);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activities, setActivities] = useState<SceneChatActivity[]>([]);
+  const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!value.trim() || isLoading) return;
-    onSend(value.trim());
-    setValue('');
-  };
+  const openChat = useCallback(() => {
+    setShowInput(true);
+    setShowChatBubble(false);
+  }, []);
+
+  const closeChat = useCallback(() => {
+    setShowInput(false);
+    setShowChatBubble(false);
+  }, []);
+
+  const sendMessage = useCallback(
+    async (message: string) => {
+      if (!message.trim() || isLoading) return;
+
+      const trimmed = message.trim();
+      const userMessage: ChatMessage = {
+        id: createMessageId(),
+        role: 'user',
+        content: trimmed,
+      };
+
+      const count = getAiCount();
+
+      // Over the limit — immediate static reply
+      if (count >= MAX_FREE_AI) {
+        const limitMsg: ChatMessage = {
+          id: createMessageId(),
+          role: 'assistant',
+          content: LIMIT_MESSAGE,
+        };
+        setMessages((prev) => [...prev, userMessage, limitMsg]);
+        setInputValue('');
+        setShowInput(false);
+        setShowChatBubble(true);
+        return;
+      }
+
+      const assistantId = createMessageId();
+      const assistantMessage: ChatMessage = {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+      };
+
+      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      setInputValue('');
+      setIsLoading(true);
+      setShowInput(false);
+      setShowChatBubble(true);
+      setActivities([]);
+
+      // Simulate a short delay then respond
+      const newCount = count + 1;
+      setAiCount(newCount);
+
+      const responseText =
+        newCount >= MAX_FREE_AI
+          ? mockResponses[count % mockResponses.length] +
+            '\n\n' +
+            LIMIT_MESSAGE
+          : mockResponses[count % mockResponses.length];
+
+      await new Promise((r) => setTimeout(r, 800));
+
+      setMessages((prev) =>
+        prev.map((m) => (m.id === assistantId ? { ...m, content: responseText } : m)),
+      );
+      setIsLoading(false);
+    },
+    [isLoading],
+  );
+
+  const value = useMemo<SceneAIContextType>(
+    () => ({
+      showChatBubble,
+      setShowChatBubble,
+      showInput,
+      setShowInput,
+      messages,
+      setMessages,
+      activities,
+      inputValue,
+      setInputValue,
+      isLoading,
+      setIsLoading,
+      sendMessage,
+      openChat,
+      closeChat,
+    }),
+    [
+      activities,
+      closeChat,
+      inputValue,
+      isLoading,
+      messages,
+      openChat,
+      sendMessage,
+      showChatBubble,
+      showInput,
+    ],
+  );
 
   return (
-    <div
-      className="absolute bottom-6 left-1/2 z-40 w-full px-4 pointer-events-none"
-      style={{ transform: 'translateX(-50%)' }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        onClick={(e) => e.stopPropagation()}
-        className="mx-auto flex w-full max-w-[420px] items-center gap-3 rounded-xl border border-border bg-card/95 backdrop-blur-sm px-4 py-4 shadow-lg pointer-events-auto"
-      >
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Ask AI about your scene..."
-          className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none py-1"
-        />
-        <button
-          type="submit"
-          className="rounded-full bg-violet-500 p-1.5 text-white hover:bg-violet-600 transition-colors"
-        >
-          <ArrowUp className="h-4 w-4" />
-        </button>
-      </form>
-    </div>
+    <SceneAIContext.Provider value={value}>{children}</SceneAIContext.Provider>
   );
 }
 
-function DemoChatBubble({
-  messages,
-  limitReached,
-}: {
-  messages: DemoChatMessage[];
-  limitReached: boolean;
-}) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+/** AI toggle button — mirrors the one in SceneEditor */
+function DemoSceneAIButton() {
+  const { showChatBubble, showInput, setShowInput, setShowChatBubble } = useSceneAI();
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const handleClick = () => {
+    if (showInput) {
+      setShowInput(false);
+      setShowChatBubble(true);
+    } else if (showChatBubble) {
+      setShowChatBubble(false);
+    } else {
+      setShowInput(true);
+    }
+  };
 
-  if (messages.length === 0) return null;
+  const buttonText = showInput ? 'AI Chat' : 'Ask AI';
+  const isActive = showChatBubble || showInput;
 
   return (
-    <div className="absolute top-4 right-4 z-40 w-80 max-h-[400px] flex flex-col rounded-xl border border-border bg-card/95 backdrop-blur-sm shadow-lg overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <Sparkles className="w-4 h-4 text-violet-500" />
-        <span className="text-sm font-medium">AI Chat</span>
-        <span className="text-xs text-muted-foreground ml-auto">
-          {Math.min(getAiCount(), MAX_FREE_AI)}/{MAX_FREE_AI} free
-        </span>
-      </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`text-sm ${
-              msg.role === 'user'
-                ? 'text-foreground ml-8'
-                : 'text-muted-foreground mr-4'
-            }`}
-          >
-            {msg.role === 'assistant' && (
-              <span className="text-violet-500 font-medium text-xs block mb-1">AI</span>
-            )}
-            <p className={`${
-              msg.role === 'user'
-                ? 'bg-violet-500/10 rounded-lg px-3 py-2 text-right'
-                : 'bg-secondary rounded-lg px-3 py-2'
-            }`}>
-              {msg.content}
-            </p>
-          </div>
-        ))}
-        {limitReached && (
-          <div className="bg-violet-500/10 border border-violet-500/20 rounded-lg p-3 text-center">
-            <p className="text-sm font-medium text-violet-600 dark:text-violet-400 mb-2">
-              Sign up to unlock unlimited AI
-            </p>
-            <SignedOut>
-              <SignUpButton mode="modal">
-                <Button size="sm" className="bg-violet-500 text-white hover:bg-violet-600 rounded-full px-4">
-                  Sign up free
-                </Button>
-              </SignUpButton>
-            </SignedOut>
-            <SignedIn>
-              <Link href="/dashboard">
-                <Button size="sm" className="bg-violet-500 text-white hover:bg-violet-600 rounded-full px-4">
-                  Go to Dashboard
-                </Button>
-              </Link>
-            </SignedIn>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-    </div>
+    <button
+      className={cn(
+        'transition-colors relative z-50 flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card hover:bg-accent',
+        isActive && 'text-violet-500 bg-violet-500/10 border-violet-500/30',
+      )}
+      type="button"
+      title={buttonText}
+      aria-label={buttonText}
+      onClick={handleClick}
+    >
+      <span className="text-sm font-medium whitespace-nowrap">{buttonText}</span>
+      <Sparkles size={18} />
+    </button>
   );
 }
 
 export default function SceneDemo() {
   const { theme } = useTheme();
   const excalidrawRef = useRef<ExcalidrawImperativeAPI | null>(null);
-  const [messages, setMessages] = useState<DemoChatMessage[]>([]);
-  const [limitReached, setLimitReached] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    setLimitReached(getAiCount() >= MAX_FREE_AI);
   }, []);
 
   const initialData = useMemo(() => {
@@ -216,47 +260,6 @@ export default function SceneDemo() {
     } catch {}
   }, []);
 
-  const handleSendMessage = useCallback(
-    (text: string) => {
-      const userMsg: DemoChatMessage = {
-        id: `u_${Date.now()}`,
-        role: 'user',
-        content: text,
-      };
-
-      const count = getAiCount();
-
-      if (count >= MAX_FREE_AI) {
-        const limitMsg: DemoChatMessage = {
-          id: `a_${Date.now()}`,
-          role: 'assistant',
-          content:
-            "You've used all 5 free AI requests. Sign up to unlock unlimited AI assistance for your scenes.",
-        };
-        setMessages((prev) => [...prev, userMsg, limitMsg]);
-        setLimitReached(true);
-        return;
-      }
-
-      const newCount = count + 1;
-      setAiCount(newCount);
-
-      const responseText = mockResponses[count % mockResponses.length];
-      const assistantMsg: DemoChatMessage = {
-        id: `a_${Date.now()}`,
-        role: 'assistant',
-        content: responseText,
-      };
-
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
-
-      if (newCount >= MAX_FREE_AI) {
-        setLimitReached(true);
-      }
-    },
-    [],
-  );
-
   const uiOptions = useMemo(
     () => ({
       canvasActions: {
@@ -281,18 +284,28 @@ export default function SceneDemo() {
           style={{ height: '600px' }}
         >
           {mounted && (
-            <ExcalidrawWithNotes
-              excalidrawRef={excalidrawRef}
-              initialData={initialData}
-              onChange={handleChange}
-              theme={theme === 'dark' ? 'dark' : 'light'}
-              gridModeEnabled={false}
-              UIOptions={uiOptions}
-            />
+            <DemoSceneAIProvider>
+              <div className="w-full h-full relative">
+                <ExcalidrawWithNotes
+                  excalidrawRef={excalidrawRef}
+                  initialData={initialData}
+                  onChange={handleChange}
+                  theme={theme === 'dark' ? 'dark' : 'light'}
+                  gridModeEnabled={false}
+                  UIOptions={uiOptions}
+                >
+                  <FooterRight>
+                    <DemoSceneAIButton />
+                  </FooterRight>
+                </ExcalidrawWithNotes>
+                {/* Same chat components as the real scene editor */}
+                <SceneChatInput />
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                  <SceneChatBubble />
+                </div>
+              </div>
+            </DemoSceneAIProvider>
           )}
-          {/* Demo AI Chat */}
-          <DemoChatInput messages={messages} onSend={handleSendMessage} />
-          <DemoChatBubble messages={messages} limitReached={limitReached} />
         </div>
 
         {/* Caption */}

@@ -9,7 +9,7 @@ import type {
   ScenePatchHandler,
 } from "./scene-chat-types";
 
-interface SceneAIContextType {
+export interface SceneAIContextType {
   showChatBubble: boolean;
   setShowChatBubble: (show: boolean) => void;
   showInput: boolean;
@@ -33,7 +33,7 @@ type SceneAIProviderProps = {
   onScenePatch?: ScenePatchHandler;
 };
 
-const SceneAIContext = createContext<SceneAIContextType | undefined>(undefined);
+export const SceneAIContext = createContext<SceneAIContextType | undefined>(undefined);
 
 const createMessageId = (): string =>
   `msg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
