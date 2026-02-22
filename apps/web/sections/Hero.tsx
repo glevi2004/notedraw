@@ -1,4 +1,4 @@
-import { Download, ChevronDown } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function Hero() {
@@ -8,23 +8,36 @@ export default function Hero() {
         <div className="flex flex-col items-start gap-6 py-12 md:py-16">
           {/* Main Headline */}
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-medium tracking-tight max-w-4xl leading-tight">
-            Memory for AI Agents
+            Think visually. Notes meet diagrams.
           </h1>
+
+          <p className="text-lg text-muted-foreground max-w-2xl">
+            Draw diagrams, add rich notes, and let AI help you think — all on one infinite canvas.
+          </p>
 
           {/* CTA Buttons */}
           <div className="flex flex-wrap items-center gap-3 mt-2">
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-6 h-11 text-sm font-medium"
+              asChild
             >
-              <Download className="w-4 h-4 mr-2" />
-              Download for macOS
+              <a href="#demo">
+                Try the demo
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </a>
             </Button>
-            
-            <button className="flex items-center gap-1 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-full border border-border hover:bg-secondary">
-              <ChevronDown className="w-4 h-4" />
-              Other platforms
-            </button>
+
+            <Button
+              variant="outline"
+              size="lg"
+              className="rounded-full px-6 h-11 text-sm font-medium"
+              asChild
+            >
+              <a href="/dashboard">
+                Get started
+              </a>
+            </Button>
           </div>
         </div>
       </div>

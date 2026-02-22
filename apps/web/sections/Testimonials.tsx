@@ -5,41 +5,41 @@ interface Testimonial {
   author: string;
   role: string;
   company?: string;
-  avatar?: string;
 }
 
 const testimonials: Testimonial[] = [
   {
-    quote: "The difference between batches is night and day, adoption jumped from single digits to over 80%. It's spreading like wildfire, the best developers are using Cursor.",
-    author: "Diana Hu",
-    role: "General Partner",
-    company: "Y Combinator"
+    quote: "Notedraw changed how our team brainstorms. We sketch ideas on the canvas and attach detailed notes right where they belong — no more switching between a whiteboard and a doc.",
+    author: "Sarah K.",
+    role: "Product Manager",
+    company: "Tech Startup"
   },
   {
-    quote: "Without a doubt, the most valuable AI tool I currently pay for is Cursor. It's fast, autocompletes exactly when and where you need it, handles brackets properly, has sensible keyboard shortcuts, and supports bring-your-own-model... every aspect is polished.",
-    author: "shadcn",
-    role: "Creator of shadcn/ui"
+    quote: "The AI assistant is surprisingly useful. I asked it to reorganize my architecture diagram and it moved everything into a clean layout in seconds.",
+    author: "Marcus T.",
+    role: "Software Engineer",
   },
   {
-    quote: "The best LLM applications provide an 'autonomy slider': you decide how much autonomy to give the AI. In Cursor, you can use Tab completion, directed editing with Cmd+K, or enable fully autonomous agent mode.",
-    author: "Andrej Karpathy",
-    role: "CEO",
-    company: "Eureka Labs"
+    quote: "I use Notedraw for everything from meeting notes to system design. The combination of freehand drawing and rich notes is exactly what I've been looking for.",
+    author: "Elena R.",
+    role: "Engineering Lead",
+    company: "Design Agency"
   },
   {
-    quote: "Cursor grew quickly at Stripe from a few hundred extremely enthusiastic employees to over a thousand. We invest more in R&D and software creation than any other project, and making that process more efficient and productive has significant economic returns.",
-    author: "Stripe Engineering",
-    role: "Engineering Team"
+    quote: "Real-time collaboration on diagrams without any setup? That alone made it worth switching. My distributed team loves it.",
+    author: "James L.",
+    role: "Team Lead",
   },
   {
-    quote: "Can officially say it. I hate coding by feel. I love coding with Cursor Tab completion. It's insane. Being a programmer is genuinely becoming more fun.",
-    author: "Developer",
-    role: "Software Engineer"
+    quote: "As a visual thinker, I need tools that let me sketch freely but also keep structured notes. Notedraw nails both.",
+    author: "Priya M.",
+    role: "UX Designer",
   },
   {
-    quote: "You no longer have to scroll through pages of documentation, but focus more on what you actually want to happen. We're only touching 1% of what's possible, and models like GPT-5 shine brightest in interactive experiences like Cursor.",
-    author: "AI Researcher",
-    role: "ML Engineer"
+    quote: "We replaced three separate tools with Notedraw. Diagramming, note-taking, and AI assistance in one place — it just works.",
+    author: "David C.",
+    role: "CTO",
+    company: "SaaS Company"
   }
 ];
 
@@ -50,14 +50,14 @@ export default function Testimonials() {
         {/* Trust Badge */}
         <div className="text-center mb-12">
           <p className="text-lg text-muted-foreground">
-            Trusted by millions of professional developers every day.
+            Loved by teams who think visually.
           </p>
         </div>
 
         {/* Testimonials Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {testimonials.map((testimonial, index) => (
-            <div 
+            <div
               key={index}
               className="group relative p-6 rounded-2xl bg-card border border-border hover:border-border/80 transition-all duration-300 hover:shadow-lg"
             >
@@ -68,12 +68,12 @@ export default function Testimonials() {
 
               {/* Quote Text */}
               <blockquote className="text-sm text-foreground leading-relaxed mb-6 relative z-10">
-                "{testimonial.quote}"
+                &ldquo;{testimonial.quote}&rdquo;
               </blockquote>
 
               {/* Author */}
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-medium text-sm">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-white font-medium text-sm">
                   {testimonial.author.charAt(0)}
                 </div>
                 <div>

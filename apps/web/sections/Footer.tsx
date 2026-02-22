@@ -1,7 +1,7 @@
 'use client';
 
 import { useTheme } from '@/context/ThemeContext';
-import { Sun, Moon, Monitor, Shield, ExternalLink, Github, Twitter, Linkedin, Youtube } from 'lucide-react';
+import { Sun, Moon, Monitor, ExternalLink, Github } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,32 +17,14 @@ export default function Footer() {
       title: 'Product',
       links: [
         { label: 'Features', href: '#features' },
-        { label: 'Enterprise', href: '#enterprise' },
-        { label: 'Web Agents', href: '#agents' },
-        { label: 'Bugbot', href: '#bugbot' },
-        { label: 'CLI', href: '#cli' },
         { label: 'Pricing', href: '#pricing' },
       ]
     },
     resources: {
       title: 'Resources',
       links: [
-        { label: 'Download', href: '#download' },
-        { label: 'Changelog', href: '#changelog' },
-        { label: 'Learn', href: '#learn', external: true },
-        { label: 'Forum', href: '#forum', external: true },
-        { label: 'Status', href: '#status', external: true },
-      ]
-    },
-    company: {
-      title: 'Company',
-      links: [
-        { label: 'Careers', href: '#careers' },
-        { label: 'Blog', href: '#blog' },
-        { label: 'Community', href: '#community' },
-        { label: 'Workshops', href: '#workshops' },
-        { label: 'Students', href: '#students' },
-        { label: 'Brand', href: '#brand' },
+        { label: 'Community', href: '#community', external: true },
+        { label: 'Blog', href: '#blog', external: true },
       ]
     },
     legal: {
@@ -50,31 +32,21 @@ export default function Footer() {
       links: [
         { label: 'Terms of Service', href: '#terms' },
         { label: 'Privacy Policy', href: '#privacy' },
-        { label: 'Data Usage', href: '#data-use' },
-        { label: 'Security', href: '#security' },
       ]
     },
-    connect: {
-      title: 'Connect',
-      links: [
-        { label: 'X', href: 'https://x.com/cursor_ai', external: true },
-        { label: 'LinkedIn', href: 'https://linkedin.com/company/cursorai', external: true },
-        { label: 'YouTube', href: 'https://youtube.com/@cursor_ai', external: true },
-      ]
-    }
   };
 
   return (
     <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-border">
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 mb-12">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
           {/* Product */}
           <div>
             <h3 className="font-medium text-sm mb-4">{footerLinks.product.title}</h3>
             <ul className="space-y-2">
               {footerLinks.product.links.map((link) => (
                 <li key={link.label}>
-                  <a 
+                  <a
                     href={link.href}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
@@ -91,29 +63,12 @@ export default function Footer() {
             <ul className="space-y-2">
               {footerLinks.resources.links.map((link) => (
                 <li key={link.label}>
-                  <a 
+                  <a
                     href={link.href}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
                   >
                     {link.label}
                     {link.external && <ExternalLink className="w-3 h-3" />}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Company */}
-          <div>
-            <h3 className="font-medium text-sm mb-4">{footerLinks.company.title}</h3>
-            <ul className="space-y-2">
-              {footerLinks.company.links.map((link) => (
-                <li key={link.label}>
-                  <a 
-                    href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {link.label}
                   </a>
                 </li>
               ))}
@@ -126,29 +81,11 @@ export default function Footer() {
             <ul className="space-y-2">
               {footerLinks.legal.links.map((link) => (
                 <li key={link.label}>
-                  <a 
+                  <a
                     href={link.href}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Connect */}
-          <div>
-            <h3 className="font-medium text-sm mb-4">{footerLinks.connect.title}</h3>
-            <ul className="space-y-2">
-              {footerLinks.connect.links.map((link) => (
-                <li key={link.label}>
-                  <a 
-                    href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
-                  >
-                    {link.label}
-                    <ExternalLink className="w-3 h-3" />
                   </a>
                 </li>
               ))}
@@ -190,44 +127,13 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-border">
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              © 2026 Cursor
-            </span>
-            <a 
-              href="#security"
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Shield className="w-4 h-4" />
-              SOC 2 Certified
-            </a>
-          </div>
+          <span className="text-sm text-muted-foreground">
+            &copy; 2026 Notedraw
+          </span>
 
-          {/* Social Icons */}
           <div className="flex items-center gap-3">
-            <a 
-              href="https://x.com/cursor_ai"
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-secondary"
-              aria-label="X (Twitter)"
-            >
-              <Twitter className="w-4 h-4" />
-            </a>
-            <a 
-              href="https://linkedin.com/company/cursorai"
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-secondary"
-              aria-label="LinkedIn"
-            >
-              <Linkedin className="w-4 h-4" />
-            </a>
-            <a 
-              href="https://youtube.com/@cursor_ai"
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-secondary"
-              aria-label="YouTube"
-            >
-              <Youtube className="w-4 h-4" />
-            </a>
-            <a 
-              href="https://github.com"
+            <a
+              href="#"
               className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-secondary"
               aria-label="GitHub"
             >

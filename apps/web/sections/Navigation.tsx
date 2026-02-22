@@ -34,12 +34,10 @@ export default function Navigation() {
 
   const navLinks = [
     { label: 'Features', href: '#features' },
-    { label: 'Enterprise', href: '#enterprise' },
     { label: 'Pricing', href: '#pricing' },
   ];
 
   const resourceLinks = [
-    { label: 'Changelog', href: '#changelog' },
     { label: 'Community', href: '#community' },
     { label: 'Blog', href: '#blog' },
   ];
