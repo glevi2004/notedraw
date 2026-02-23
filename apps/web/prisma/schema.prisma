@@ -130,6 +130,9 @@ model Scene {
   collectionId  String?
   title         String
   content       Json?
+  /// Byte length of the serialized content JSON, updated on every save.
+  /// Used for monitoring without fetching the full content column.
+  contentSize   Int?
   searchText    String?         @db.Text
   lastEditedBy  String?
   lastEditedAt  DateTime?
@@ -147,6 +150,8 @@ model Scene {
   @@index([workspaceId])
   @@index([collectionId])
   @@index([workspaceId, updatedAt])
+  // Composite for "list scenes in a collection ordered by recency"
+  @@index([collectionId, updatedAt])
 }
 
 model Team {
@@ -306,6 +311,8 @@ model CollabRoom {
 
   @@index([sceneId])
   @@index([createdById])
+  // Composite for "find active (non-revoked) rooms for a scene"
+  @@index([sceneId, revokedAt])
 }
 
 model ShareSnapshot {
@@ -323,4 +330,7 @@ model ShareSnapshot {
 
   @@index([sceneId])
   @@index([createdById])
+  // Composite for cron cleanup: find expired/revoked snapshots for a scene
+  @@index([sceneId, revokedAt])
+  @@index([expiresAt])
 }
