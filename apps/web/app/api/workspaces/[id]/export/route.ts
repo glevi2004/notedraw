@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
   canAccessWorkspace,
@@ -5,6 +6,7 @@ import {
   getCurrentUser,
 } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { runExportJob } from "@/lib/workspace-export";
 export const runtime = 'nodejs';
 
 export async function GET(
@@ -65,6 +67,12 @@ export async function POST(
         entityId: job.id,
         metadata: { scope: job.scope },
       },
+    });
+
+    // Kick off the actual export after the response is sent so the client
+    // receives the job ID immediately and can poll for status.
+    after(async () => {
+      await runExportJob(job.id);
     });
 
     return NextResponse.json(job, { status: 201 });
