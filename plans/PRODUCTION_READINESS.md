@@ -457,7 +457,7 @@ API routes accept and return untyped JSON. The `packages/ai-contracts` exists fo
 
 ## 6. Infrastructure & Operations
 
-### 6.1 No deployment environment separation — P0
+### 6.1 No deployment environment separation — P0 ⏭ DEFERRED (external infrastructure: Neon branches, Clerk instances, Vercel/Fly staging)
 
 There is no staging environment. All testing happens locally, and changes are deployed directly to production.
 
@@ -469,7 +469,7 @@ There is no staging environment. All testing happens locally, and changes are de
 
 ---
 
-### 6.2 No health checks or uptime monitoring — P1
+### 6.2 No health checks or uptime monitoring — P1 ✅ DONE (code; uptime monitoring service setup is external)
 
 The collab server has a `/healthz` endpoint. The web app and MCP server do not.
 
@@ -481,7 +481,7 @@ The collab server has a `/healthz` endpoint. The web app and MCP server do not.
 
 ---
 
-### 6.3 Collab server has no Docker or deployment config — P1
+### 6.3 Collab server has no Docker or deployment config — P1 ✅ DONE
 
 `apps/collab` has no `Dockerfile`, no `fly.toml`, no `railway.json`. The server cannot be deployed without manual configuration.
 
@@ -507,7 +507,7 @@ And create `apps/collab/fly.toml` for Fly.io deployment (see Deployment doc).
 
 ---
 
-### 6.4 No cron jobs for expired data cleanup — P2
+### 6.4 No cron jobs for expired data cleanup — P2 ✅ DONE
 
 The following data accumulates indefinitely:
 - `ShareSnapshot` records with past `expiresAt`
@@ -526,7 +526,7 @@ The following data accumulates indefinitely:
 
 ---
 
-### 6.5 No logging infrastructure — P2
+### 6.5 No logging infrastructure — P2 ✅ DONE (pino + request ID; log drain service setup is external)
 
 The collab server uses `console.log`. The web app API routes have no structured logging. Without structured logs, debugging production issues is very difficult.
 
