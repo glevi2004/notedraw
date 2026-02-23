@@ -42,7 +42,9 @@ export async function GET() {
       members: undefined,
     }));
 
-    return NextResponse.json(serialized);
+    return NextResponse.json(serialized, {
+      headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
+    });
   } catch (error) {
     console.error("Error fetching workspaces:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

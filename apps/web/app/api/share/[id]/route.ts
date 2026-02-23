@@ -43,7 +43,10 @@ export async function GET(
     }
 
     const meta = await head(snapshot.blobPath);
-    return NextResponse.json({ url: meta.url, sceneId: snapshot.sceneId });
+    return NextResponse.json(
+      { url: meta.url, sceneId: snapshot.sceneId },
+      { headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=300" } },
+    );
   } catch (error) {
     console.error("Error fetching share snapshot:", error);
     return NextResponse.json(
