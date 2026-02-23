@@ -14,6 +14,18 @@ const MAX_PAYLOAD_BYTES = Number(
   process.env.COLLAB_MAX_PAYLOAD_BYTES || 1_000_000,
 );
 
+// In production, COLLAB_ALLOWED_ORIGINS must be set — deny-all is never a safe fallback
+if (process.env.NODE_ENV === "production" && !ALLOWED_ORIGINS.length) {
+  console.error(
+    "FATAL: COLLAB_ALLOWED_ORIGINS must be set in production. " +
+      "Set it to a comma-separated list of allowed origins, e.g. https://notedraw.com",
+  );
+  process.exit(1);
+}
+
+// Allow listed origins, or deny all if the list is empty (never open to all origins)
+const corsOrigin = ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : false;
+
 const WS_EVENTS = {
   SERVER_VOLATILE: "server-volatile-broadcast",
   SERVER: "server-broadcast",
@@ -47,7 +59,7 @@ const server = createServer((req, res) => {
 
 const io = new Server(server, {
   cors: {
-    origin: ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : true,
+    origin: corsOrigin,
     methods: ["GET", "POST"],
   },
   maxHttpBufferSize: MAX_PAYLOAD_BYTES,
