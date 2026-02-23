@@ -1,5 +1,6 @@
 import path from "path";
 import { fileURLToPath } from "url";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packagesDir = path.resolve(__dirname, "../../packages");
@@ -95,4 +96,23 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Sentry org/project — read from env so this file stays secrets-free
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Auth token for uploading source maps (set in CI, not in local .env)
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Suppress Sentry CLI output during builds
+  silent: !process.env.CI,
+
+  // Hide source maps from the public bundle
+  hideSourceMaps: true,
+
+  // Tree-shake Sentry debug code in production
+  disableLogger: true,
+
+  // Automatically instrument Vercel Cron jobs
+  automaticVercelMonitors: true,
+});
