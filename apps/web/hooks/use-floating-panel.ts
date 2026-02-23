@@ -51,18 +51,25 @@ export function useFloatingPanel(
 
   const interaction = useRef<Interaction>({ type: "idle" });
 
-  // Position to bottom-right on first mount / reset
+  // Position to bottom-right on first mount / reset.
+  // Also clamp the initial width/height to fit the parent so the panel is
+  // always fully visible regardless of container size (e.g. landing demo vs
+  // full-screen editor).
   useEffect(() => {
     if (bounds.x >= 0) return;
     const parent = panelRef.current?.parentElement;
-    const width = parent ? parent.clientWidth : window.innerWidth;
-    const height = parent ? parent.clientHeight : window.innerHeight;
-    setBounds((b) => ({
-      ...b,
-      x: width - b.width - 16,
-      y: height - b.height - 16,
-    }));
-  }, [bounds.x, panelRef]);
+    const parentW = parent ? parent.clientWidth : window.innerWidth;
+    const parentH = parent ? parent.clientHeight : window.innerHeight;
+    const MARGIN = 16;
+    const w = clamp(defaultWidth, minWidth, parentW - MARGIN * 2);
+    const h = clamp(defaultHeight, minHeight, parentH - MARGIN * 2);
+    setBounds({
+      x: parentW - w - MARGIN,
+      y: parentH - h - MARGIN,
+      width: w,
+      height: h,
+    });
+  }, [bounds.x, panelRef, defaultWidth, defaultHeight, minWidth, minHeight]);
 
   // Single global listener pair — deps are all stable (ref + constants)
   useEffect(() => {

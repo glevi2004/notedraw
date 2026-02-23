@@ -14,8 +14,8 @@ import { useSceneAI, aiSuggestions } from "./scene-ai-context";
 import { motion, AnimatePresence } from "motion/react";
 import { useFloatingPanel } from "@/hooks/use-floating-panel";
 
-const MIN_WIDTH = 360;
-const MIN_HEIGHT = 320;
+const MIN_WIDTH = 280;
+const MIN_HEIGHT = 240;
 const DEFAULT_WIDTH = 380;
 const DEFAULT_HEIGHT = 500;
 const EXPANDED_HEIGHT = 600;
