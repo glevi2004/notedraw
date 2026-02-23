@@ -129,7 +129,7 @@ There is no rate limiting on any API route. This exposes:
 
 ---
 
-### 1.6 Vercel Blob public access — P1
+### 1.6 Vercel Blob public access — P1 ✅ DONE
 
 `@vercel/blob` tokens and blob URLs need to be audited:
 - Are share snapshot blobs publicly readable by URL (intentional)?
@@ -154,7 +154,7 @@ There is no rate limiting on any API route. This exposes:
 
 ---
 
-### 1.8 Environment variable secrets audit — P1
+### 1.8 Environment variable secrets audit — P1 ✅ DONE
 
 Before any production deployment:
 - Rotate all keys from `.env.local` (test Clerk keys, test tokens)
@@ -164,7 +164,7 @@ Before any production deployment:
 
 ---
 
-### 1.9 CSRF protection — P2
+### 1.9 CSRF protection — P2 ✅ DONE
 
 Next.js App Router API routes are not automatically CSRF-protected. Any form POST from a malicious third-party site could be submitted to the API with the user's session cookies.
 
