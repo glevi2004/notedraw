@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save as SaveIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 
 type PreferenceTheme = "SYSTEM" | "LIGHT" | "DARK";
@@ -11,7 +10,6 @@ export default function PreferencesSettingsPage() {
   const { theme, setTheme } = useTheme();
   const [preferenceTheme, setPreferenceTheme] = useState<PreferenceTheme>("SYSTEM");
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const run = async () => {
@@ -32,22 +30,26 @@ export default function PreferencesSettingsPage() {
     }
   }, [preferenceTheme, setTheme]);
 
-  const save = async () => {
+  const save = async (newTheme: PreferenceTheme) => {
     setSaving(true);
-    setStatus(null);
     try {
       const response = await fetch("/api/account/preferences", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme: preferenceTheme }),
+        body: JSON.stringify({ theme: newTheme }),
       });
       if (!response.ok) throw new Error("Failed");
-      setStatus("Preferences saved");
+      setPreferenceTheme(newTheme);
     } catch {
-      setStatus("Failed to save preferences");
+      // Silently fail - theme will still update locally
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleThemeChange = (newTheme: PreferenceTheme) => {
+    setPreferenceTheme(newTheme);
+    save(newTheme);
   };
 
   return (
@@ -69,31 +71,41 @@ export default function PreferencesSettingsPage() {
 
         <div className="flex flex-wrap gap-2">
           <button
-            className={`px-3 py-1.5 rounded border text-sm ${preferenceTheme === "SYSTEM" ? "border-primary text-foreground" : "border-border text-muted-foreground"}`}
-            onClick={() => setPreferenceTheme("SYSTEM")}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded border text-sm transition-colors ${
+              preferenceTheme === "SYSTEM"
+                ? "border-primary text-foreground bg-primary/10"
+                : "border-border text-muted-foreground hover:bg-secondary"
+            }`}
+            onClick={() => handleThemeChange("SYSTEM")}
+            disabled={saving}
           >
+            <Monitor className="w-4 h-4" />
             System
           </button>
           <button
-            className={`px-3 py-1.5 rounded border text-sm ${preferenceTheme === "LIGHT" ? "border-primary text-foreground" : "border-border text-muted-foreground"}`}
-            onClick={() => setPreferenceTheme("LIGHT")}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded border text-sm transition-colors ${
+              preferenceTheme === "LIGHT"
+                ? "border-primary text-foreground bg-primary/10"
+                : "border-border text-muted-foreground hover:bg-secondary"
+            }`}
+            onClick={() => handleThemeChange("LIGHT")}
+            disabled={saving}
           >
+            <Sun className="w-4 h-4" />
             Light
           </button>
           <button
-            className={`px-3 py-1.5 rounded border text-sm ${preferenceTheme === "DARK" ? "border-primary text-foreground" : "border-border text-muted-foreground"}`}
-            onClick={() => setPreferenceTheme("DARK")}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded border text-sm transition-colors ${
+              preferenceTheme === "DARK"
+                ? "border-primary text-foreground bg-primary/10"
+                : "border-border text-muted-foreground hover:bg-secondary"
+            }`}
+            onClick={() => handleThemeChange("DARK")}
+            disabled={saving}
           >
+            <Moon className="w-4 h-4" />
             Dark
           </button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button onClick={save} disabled={saving}>
-            <SaveIcon className="w-4 h-4 mr-2" />
-            {saving ? "Saving..." : "Save preferences"}
-          </Button>
-          {status ? <span className="text-sm text-muted-foreground">{status}</span> : null}
         </div>
       </section>
     </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
@@ -493,7 +492,27 @@ export function DashboardSidebar({
           {isSettingsMode ? (
             settingsNav || null
           ) : isScenePage ? (
-            <SceneSidebarList query={searchValue} workspaceId={activeWorkspaceId} />
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  if (activeWorkspaceId) {
+                    params.set("workspaceId", activeWorkspaceId);
+                  }
+                  router.push(`/dashboard?${params.toString()}`);
+                }}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors",
+                  "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  sidebarCollapsed && "justify-center px-2",
+                )}
+                title={sidebarCollapsed ? "Dashboard" : undefined}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                {!sidebarCollapsed && <span>Dashboard</span>}
+              </button>
+              <SceneSidebarList query={searchValue} workspaceId={activeWorkspaceId} />
+            </div>
           ) : (
             <div className="space-y-2">
               {!sidebarCollapsed && (
@@ -602,42 +621,29 @@ export function DashboardSidebar({
                       Preferences
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} 
+                      className="flex items-center gap-2"
+                    >
+                      {theme === 'light' ? (
+                        <>
+                          <Moon className="w-4 h-4" />
+                          Dark mode
+                        </>
+                      ) : (
+                        <>
+                          <Sun className="w-4 h-4" />
+                          Light mode
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => signOut()}>
                       <LogOut className="w-4 h-4 mr-2" />
                       Sign out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
-
-              <div className="mt-2.5 flex items-center justify-between gap-2">
-                <Link
-                  href="/landing"
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Back
-                </Link>
-                <button
-                  className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                  onClick={() =>
-                    setTheme(
-                      theme === "dark" ? "light" : "dark",
-                    )
-                  }
-                  title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                >
-                  {theme === "dark" ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Sun className="w-3 h-3" />
-                      Light
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1">
-                      <Moon className="w-3 h-3" />
-                      Dark
-                    </span>
-                  )}
-                </button>
               </div>
             </div>
           )}
