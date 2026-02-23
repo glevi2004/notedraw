@@ -2,6 +2,7 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { WebhookEvent } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   const headerPayload = await headers();

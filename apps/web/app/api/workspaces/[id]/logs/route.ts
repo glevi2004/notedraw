@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { canAccessWorkspace, getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+export const runtime = 'nodejs';
 
 export async function GET(
   req: NextRequest,

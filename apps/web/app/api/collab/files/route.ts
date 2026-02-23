@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { put, head } from "@vercel/blob";
+export const runtime = 'nodejs';
 
 // Collab file uploads are intentionally public (access: "public") and unauthenticated.
 // Excalidraw's real-time collaboration does not require login — any participant in a

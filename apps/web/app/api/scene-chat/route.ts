@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { handleSceneChatRequest } from "@/app/api/ai/scene-chat/route";
 import { streamModelTokens, type ModelClientMessage } from "@/lib/ai/model-client";
+export const runtime = 'nodejs';
 
 const DEPRECATION_HEADERS = {
   "x-notedraw-deprecated": "true",

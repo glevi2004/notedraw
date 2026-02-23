@@ -4,6 +4,7 @@ import { put } from "@vercel/blob";
 import { db } from "@/lib/db";
 import { canAccessScene, getCurrentUser } from "@/lib/auth";
 import { checkShareCreateRateLimit } from "@/lib/rate-limit";
+export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   try {

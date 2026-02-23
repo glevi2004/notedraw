@@ -3,6 +3,7 @@ import { head } from "@vercel/blob";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { checkShareReadRateLimit } from "@/lib/rate-limit";
+export const runtime = 'nodejs';
 
 export async function GET(
   _req: Request,

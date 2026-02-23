@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { canAccessScene, getCurrentUser } from "@/lib/auth";
+export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   try {

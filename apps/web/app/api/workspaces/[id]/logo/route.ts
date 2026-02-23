@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { canAdminWorkspace, getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+export const runtime = 'nodejs';
 
 const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 
