@@ -6,7 +6,6 @@ import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import {
   ChevronDown,
-  ChevronRight,
   Sun,
   Moon,
   Monitor,
@@ -74,7 +73,7 @@ export default function Navigation() {
             ))}
             
             {/* Resources Dropdown */}
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-1 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-secondary">
                   Resources
@@ -96,7 +95,7 @@ export default function Navigation() {
           {/* Right Side Actions */}
           <div className="flex items-center gap-2">
             {/* Theme Toggle */}
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <button className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-secondary">
                   {theme === 'light' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -154,8 +153,7 @@ export default function Navigation() {
                   variant="ghost"
                   className="text-muted-foreground hover:text-foreground"
                 >
-                  <ChevronRight className="w-4 h-4" />
-                  <span className="ml-1">Dashboard</span>
+                 Dashboard
                 </Button>
               </Link>
               <UserButton
@@ -222,7 +220,6 @@ export default function Navigation() {
                         variant="ghost"
                         className="w-full justify-start text-muted-foreground hover:text-foreground"
                       >
-                        <ChevronRight className="w-4 h-4 mr-2" />
                         Dashboard
                       </Button>
                     </Link>
