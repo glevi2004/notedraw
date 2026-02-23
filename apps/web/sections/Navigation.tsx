@@ -43,7 +43,7 @@ export default function Navigation() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-24">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
           <Link href="/?landing=true" className="flex items-center gap-1 group">
@@ -61,7 +61,7 @@ export default function Navigation() {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-1">
+          {/* <div className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => (
               <a
                 key={link.label}
@@ -72,7 +72,6 @@ export default function Navigation() {
               </a>
             ))}
             
-            {/* Resources Dropdown */}
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-1 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-secondary">
@@ -90,7 +89,7 @@ export default function Navigation() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </div> */}
 
           {/* Right Side Actions */}
           <div className="flex items-center gap-2">
@@ -179,7 +178,7 @@ export default function Navigation() {
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t border-border/50 animate-fade-in">
             <div className="flex flex-col gap-1">
-              {navLinks.map((link) => (
+              {/* {navLinks.map((link) => (
                 <a
                   key={link.label}
                   href={link.href}
@@ -199,7 +198,7 @@ export default function Navigation() {
                 >
                   {link.label}
                 </a>
-              ))}
+              ))} */}
               <div className="px-6 py-2 border-t border-border/50 mt-2 pt-2">
                 <SignedOut>
                   <SignInButton mode="modal">
