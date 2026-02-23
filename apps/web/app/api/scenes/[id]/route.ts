@@ -11,6 +11,7 @@ import {
 } from "@/lib/auth";
 import { buildSceneSearchText } from "@/lib/scene-search";
 import { db } from "@/lib/db";
+import { checkSceneSaveRateLimit } from "@/lib/rate-limit";
 
 async function updateScene(
   req: NextRequest,
@@ -41,16 +42,51 @@ async function updateScene(
     return NextResponse.json({ error: "Permission denied" }, { status: 403 });
   }
 
-  const body = await req.json();
-  const {
-    title,
-    content,
-    collectionId,
-  } = body as {
-    title?: string;
-    content?: any;
-    collectionId?: string | null;
-  };
+  const rate = checkSceneSaveRateLimit(user.id);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil(rate.retryAfterMs / 1000)) },
+      },
+    );
+  }
+
+  // Enforce a 5 MB payload limit before parsing JSON to prevent oversized scene blobs
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  const MAX_PAYLOAD_BYTES = 5 * 1024 * 1024;
+  if (contentLength > MAX_PAYLOAD_BYTES) {
+    return NextResponse.json(
+      { error: "Payload too large. Scene content must be under 5 MB." },
+      { status: 413 },
+    );
+  }
+
+  const rawText = await req.text();
+  if (Buffer.byteLength(rawText, "utf8") > MAX_PAYLOAD_BYTES) {
+    return NextResponse.json(
+      { error: "Payload too large. Scene content must be under 5 MB." },
+      { status: 413 },
+    );
+  }
+
+  let body: { title?: string; content?: any; collectionId?: string | null };
+  try {
+    body = JSON.parse(rawText);
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { title, content, collectionId } = body;
+
+  // Validate content shape — must be a plain object or null if provided
+  if (content !== undefined && content !== null && (typeof content !== "object" || Array.isArray(content))) {
+    return NextResponse.json(
+      { error: "Invalid content: must be a scene object" },
+      { status: 400 },
+    );
+  }
 
   const updateData: Prisma.SceneUpdateInput = {};
 
