@@ -249,7 +249,7 @@ Neon's serverless PostgreSQL has connection limits per plan. Next.js serverless 
 
 ## 3. Reliability & Error Handling
 
-### 3.1 No error tracking — P0
+### 3.1 No error tracking — P0 ✅ DONE
 
 The app has no error tracking service. When something crashes in production, there is no alert, no stack trace, no user impact visibility.
 
@@ -262,7 +262,7 @@ The app has no error tracking service. When something crashes in production, the
 
 ---
 
-### 3.2 Export/import jobs have no background processor — P1
+### 3.2 Export/import jobs have no background processor — P1 ✅ DONE
 
 `WorkspaceExportJob` and `WorkspaceImportJob` models exist with a `status` field, but there is no background job processor. When a user triggers an export, the API likely runs it synchronously in the request handler, which will time out for large workspaces (Vercel functions time out at 10s on Hobby, 60s on Pro).
 
@@ -274,7 +274,7 @@ The app has no error tracking service. When something crashes in production, the
 
 ---
 
-### 3.3 No graceful shutdown in collab server — P1
+### 3.3 No graceful shutdown in collab server — P1 ✅ DONE
 
 The `apps/collab` Node.js server has no `SIGTERM` handler. When the container or process is killed (e.g., during a deployment), all active Socket.IO connections are abruptly terminated, causing users to lose unsaved data.
 
@@ -294,7 +294,7 @@ process.on('SIGTERM', async () => {
 
 ---
 
-### 3.4 Scene auto-save has no retry on failure — P1
+### 3.4 Scene auto-save has no retry on failure — P1 ✅ DONE
 
 When the 10-second throttled save fails (network error, 5xx), there is no retry. The user's changes are silently lost on navigation.
 
@@ -306,7 +306,7 @@ When the 10-second throttled save fails (network error, 5xx), there is no retry.
 
 ---
 
-### 3.5 Unhandled Promise rejections in API routes — P2
+### 3.5 Unhandled Promise rejections in API routes — P2 ✅ DONE
 
 API route handlers should wrap async logic in try/catch and return consistent error shapes. Without this, an uncaught exception in a route returns a generic 500 with no useful client-side information.
 
