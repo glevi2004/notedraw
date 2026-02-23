@@ -21,7 +21,7 @@ Each section is labeled with a priority:
 
 ## 1. Security
 
-### 1.1 TypeScript build errors silenced — P0
+### 1.1 TypeScript build errors silenced — P0 ✅ DONE
 
 `apps/web/next.config.mjs` has `typescript: { ignoreBuildErrors: true }`. This was added to accommodate Excalidraw's Vite-native types, but it means **any TypeScript error anywhere in the codebase silently passes the build**. Shipping with this in production means a class of runtime crashes is completely invisible at build time.
 
@@ -34,7 +34,7 @@ Each section is labeled with a priority:
 
 ---
 
-### 1.2 Missing security headers — P0
+### 1.2 Missing security headers — P0 ✅ DONE
 
 There are no HTTP security headers configured. The Next.js config adds no `headers()` function. Without these, the app is vulnerable to:
 - Clickjacking (no `X-Frame-Options` or `frame-ancestors` CSP directive)
@@ -73,7 +73,7 @@ Start with `Content-Security-Policy-Report-Only` + a report endpoint. Excalidraw
 
 ---
 
-### 1.3 Collab server CORS misconfiguration — P0
+### 1.3 Collab server CORS misconfiguration — P0 ✅ DONE
 
 In `apps/collab/src/index.ts`:
 
@@ -95,7 +95,7 @@ const origin = ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : false;
 
 ---
 
-### 1.4 Clerk webhook signature not verified — P1
+### 1.4 Clerk webhook signature not verified — P1 ✅ DONE (was already implemented)
 
 Check `apps/web/app/api/webhooks/clerk/route.ts`. Clerk sends a `svix-signature` header that must be verified before trusting the payload. Without verification, any attacker can POST fake user events (user creation, deletion) to this endpoint.
 
@@ -114,7 +114,7 @@ await wh.verify(rawBody, {
 
 ---
 
-### 1.5 API rate limiting — P1
+### 1.5 API rate limiting — P1 ✅ DONE
 
 There is no rate limiting on any API route. This exposes:
 - `/api/ai/scene-chat` to LLM cost abuse (each request costs money)
@@ -144,7 +144,7 @@ There is no rate limiting on any API route. This exposes:
 
 ---
 
-### 1.7 No input sanitization on scene content — P1
+### 1.7 No input sanitization on scene content — P1 ✅ DONE (size limit + shape validation)
 
 `Scene.content` accepts a raw `Json` field from the client. While Prisma prevents SQL injection, if the content is ever rendered as HTML (e.g., in the note editor or share view), XSS is possible via malicious `noteContent` payloads.
 
@@ -535,14 +535,6 @@ The collab server uses `console.log`. The web app API routes have no structured 
 2. For `apps/web`, use Vercel's built-in log drains (configurable in Vercel dashboard → project → Log Drains)
 3. Drain logs to a service: Logtail (Betterstack), Papertrail, or Axiom
 4. Add `requestId` correlation to API responses for trace debugging
-
----
-
-### 6.6 No secrets management beyond environment variables — P3
-
-Currently, all secrets are environment variables. For larger teams, this creates risk of accidental exposure (e.g., in logs) and makes rotation difficult.
-
-**Action (future):** Consider Doppler or Vercel's team environment variables feature for secret sharing and rotation. For now, document which secrets exist and who owns rotation responsibility.
 
 ---
 
