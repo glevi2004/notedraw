@@ -5,10 +5,7 @@ import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import { FooterRight } from '@excalidraw/excalidraw';
 import { useTheme } from '@/context/ThemeContext';
 import { Sparkles } from 'lucide-react';
-import { SignUpButton, SignedOut, SignedIn } from '@clerk/nextjs';
-import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import {
   SceneAIContext,
   useSceneAI,
@@ -227,11 +224,32 @@ function DemoSceneAIButton() {
 export default function SceneDemo() {
   const { theme } = useTheme();
   const excalidrawRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [isInteractive, setIsInteractive] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Handle clicks outside the scene to deactivate it
+  useEffect(() => {
+    if (!isInteractive) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsInteractive(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isInteractive]);
 
   const initialData = useMemo(() => {
     const stored = getStoredScene();
@@ -260,6 +278,10 @@ export default function SceneDemo() {
     } catch {}
   }, []);
 
+  const handleActivate = useCallback(() => {
+    setIsInteractive(true);
+  }, []);
+
   const uiOptions = useMemo(
     () => ({
       canvasActions: {
@@ -276,48 +298,59 @@ export default function SceneDemo() {
   );
 
   return (
-    <section className="py-8 px-4 sm:px-6 lg:px-8" id="demo">
-      <div className="max-w-7xl mx-auto">
-        {/* Scene Container */}
-        <div
-          className="relative rounded-2xl overflow-hidden shadow-2xl border border-border"
-          style={{ height: '600px' }}
-        >
-          {mounted && (
-            <DemoSceneAIProvider>
-              <div className="w-full h-full relative">
-                <ExcalidrawWithNotes
-                  excalidrawRef={excalidrawRef}
-                  initialData={initialData}
-                  onChange={handleChange}
-                  theme={theme === 'dark' ? 'dark' : 'light'}
-                  gridModeEnabled={false}
-                  UIOptions={uiOptions}
-                >
-                  <FooterRight>
-                    <DemoSceneAIButton />
-                  </FooterRight>
-                </ExcalidrawWithNotes>
-                {/* Same chat components as the real scene editor */}
-                <SceneChatInput />
-                <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                  <SceneChatBubble />
-                </div>
+    <section className="w-full px-3 sm:px-32 pb-20" id="demo">
+      {/* Full-bleed canvas — matches Cluely app preview proportions */}
+      <div
+        ref={containerRef}
+        className="relative w-full overflow-hidden rounded-2xl border border-border shadow-2xl"
+        style={{ height: 'clamp(480px, 72vh, 860px)' }}
+        onClick={!isInteractive ? handleActivate : undefined}
+        onMouseDown={(e) => {
+          if (isInteractive) e.stopPropagation();
+        }}
+      >
+        {mounted && (
+          <DemoSceneAIProvider>
+            <div className="w-full h-full relative">
+              <ExcalidrawWithNotes
+                excalidrawRef={excalidrawRef}
+                initialData={initialData}
+                onChange={handleChange}
+                theme={theme === 'dark' ? 'dark' : 'light'}
+                gridModeEnabled={false}
+                UIOptions={uiOptions}
+              >
+                <FooterRight>
+                  <DemoSceneAIButton />
+                </FooterRight>
+              </ExcalidrawWithNotes>
+              <SceneChatInput />
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                <SceneChatBubble />
               </div>
-            </DemoSceneAIProvider>
-          )}
-        </div>
-
-        {/* Caption */}
-        <div className="mt-8 text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <Sparkles className="w-5 h-5 text-violet-500" />
-            <span className="font-medium">Try Notedraw</span>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Draw, add notes, and ask AI — your work saves locally in this demo
-          </p>
-        </div>
+            </div>
+            {/* Transparent overlay that blocks all events when not interactive */}
+            {!isInteractive && (
+              <div
+                className="absolute inset-0 z-50 cursor-pointer"
+                onClick={handleActivate}
+                onWheel={(e) => {
+                  // Prevent wheel events from reaching Excalidraw
+                  e.stopPropagation();
+                  // Allow page scrolling to continue
+                }}
+                onMouseDown={(e) => {
+                  // Prevent any mouse events from reaching Excalidraw
+                  e.stopPropagation();
+                }}
+                onTouchStart={(e) => {
+                  // Prevent touch events from reaching Excalidraw
+                  e.stopPropagation();
+                }}
+              />
+            )}
+          </DemoSceneAIProvider>
+        )}
       </div>
     </section>
   );

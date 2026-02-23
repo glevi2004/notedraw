@@ -56,7 +56,6 @@ export function SceneChatInput() {
           }}
           placeholder="Ask AI about your scene..."
           className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none py-1"
-          autoFocus
         />
         <kbd className="text-xs text-muted-foreground font-mono">⌘I</kbd>
         <button 
