@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { put } from "@vercel/blob";
 import { db } from "@/lib/db";
 import { canAccessScene, getCurrentUser } from "@/lib/auth";
+import { checkShareCreateRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
@@ -14,6 +15,17 @@ export async function POST(req: Request) {
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rate = checkShareCreateRateLimit(user.id);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        {
+          status: 429,
+          headers: { "Retry-After": String(Math.ceil(rate.retryAfterMs / 1000)) },
+        },
+      );
     }
 
     const { searchParams } = new URL(req.url);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { head } from "@vercel/blob";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { checkShareReadRateLimit } from "@/lib/rate-limit";
 
 export async function GET(
   _req: Request,
@@ -11,6 +12,17 @@ export async function GET(
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rate = checkShareReadRateLimit(userId);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        {
+          status: 429,
+          headers: { "Retry-After": String(Math.ceil(rate.retryAfterMs / 1000)) },
+        },
+      );
     }
 
     const { id } = await params;
