@@ -62,7 +62,7 @@ const parseNoteBlocks = (noteContent?: string): PartialBlock[] => {
     return [
       {
         type: "paragraph",
-        content: [{ type: "text", text: "" }],
+        content: [{ type: "text", text: "", styles: {} }],
       },
     ];
   }
@@ -77,7 +77,7 @@ const parseNoteBlocks = (noteContent?: string): PartialBlock[] => {
   return [
     {
       type: "paragraph",
-      content: [{ type: "text", text: noteContent }],
+      content: [{ type: "text", text: noteContent, styles: {} }],
     },
   ];
 };
