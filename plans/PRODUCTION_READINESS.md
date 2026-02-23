@@ -174,7 +174,7 @@ Next.js App Router API routes are not automatically CSRF-protected. Any form POS
 
 ## 2. Database
 
-### 2.1 No database migrations — P0
+### 2.1 No database migrations — P0 ✅ DONE
 
 The project uses `db:push` (schema sync) instead of Prisma Migrate. This is fine during development but **is not safe for production**:
 - `db:push` can silently drop columns
@@ -189,7 +189,7 @@ The project uses `db:push` (schema sync) instead of Prisma Migrate. This is fine
 
 ---
 
-### 2.2 Scene content JSON size — P1
+### 2.2 Scene content JSON size — P1 ✅ DONE
 
 `Scene.content` is stored as a `Json` column in PostgreSQL. A complex Excalidraw scene with hundreds of elements and embedded images can grow to 5–20 MB. Storing large blobs in a relational database column:
 - Slows down all queries that select the scene row
@@ -203,7 +203,7 @@ The project uses `db:push` (schema sync) instead of Prisma Migrate. This is fine
 
 ---
 
-### 2.3 Full-text search not production-ready — P1
+### 2.3 Full-text search not production-ready — P1 ✅ DONE
 
 `Scene.searchText` stores plain text for search. This is likely queried with a `LIKE '%term%'` pattern, which:
 - Does a full table scan (no index benefit)
@@ -218,7 +218,7 @@ The project uses `db:push` (schema sync) instead of Prisma Migrate. This is fine
 
 ---
 
-### 2.4 Missing database indexes for common queries — P2
+### 2.4 Missing database indexes for common queries — P2 ✅ DONE
 
 Review common access patterns against the schema:
 - `WorkspaceActivityLog` is queried by `workspaceId + createdAt` — index exists. Good.
@@ -235,7 +235,7 @@ Review common access patterns against the schema:
 
 ---
 
-### 2.5 Neon database connection limits — P2
+### 2.5 Neon database connection limits — P2 ✅ DONE
 
 Neon's serverless PostgreSQL has connection limits per plan. Next.js serverless functions create a new Prisma client connection per cold start. With multiple concurrent Vercel function instances, you can exhaust the connection pool.
 
