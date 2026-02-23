@@ -7,6 +7,12 @@ import { throttle, type ThrottledFunction } from "@/lib/throttle";
 import { SceneVersionCache } from "@/lib/scene-version";
 import { SYNC_FULL_SCENE_INTERVAL_MS } from "@/app_constants";
 
+/** localStorage key for persisting an unsaved payload across page reloads */
+const localStorageKey = (sceneId: string) => `notedraw:unsaved:${sceneId}`;
+
+/** Exponential backoff delays in ms for the two retry attempts */
+const RETRY_DELAYS_MS = [1_000, 3_000];
+
 export interface UseThrottledSceneSaveOptions {
   /** The scene/document ID */
   sceneId: string;
@@ -29,6 +35,14 @@ export interface UseThrottledSceneSaveReturn {
   saveError: string | null;
   /** Last successful save time */
   lastSaved: Date | null;
+  /**
+   * True when a previous session stored an unsaved payload in localStorage for
+   * this scene. The caller should surface a toast so the user knows their
+   * most-recent changes were not synced to the server.
+   */
+  hasLocalFallback: boolean;
+  /** Clear the localStorage fallback (call after displaying the warning) */
+  clearLocalFallback: () => void;
   /** Handle Excalidraw onChange - pass this to Excalidraw's onChange prop */
   handleChange: (elements: readonly ExcalidrawElement[] | undefined) => void;
   /** Trigger immediate save (e.g., for manual save button) */
@@ -86,6 +100,14 @@ export function useThrottledSceneSave(
   const [isDirty, setIsDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [hasLocalFallback, setHasLocalFallback] = useState(() => {
+    // Detect on mount whether a previous session left an unsaved payload
+    try {
+      return !!localStorage.getItem(localStorageKey(sceneId));
+    } catch {
+      return false;
+    }
+  });
 
   const hasInitializedRef = useRef(false);
   const hasPendingSaveRef = useRef(false);
@@ -159,48 +181,87 @@ export function useThrottledSceneSave(
       }
 
       if (!ok) {
-        const requestInit: RequestInit = {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: payload,
+        // Attempt the PATCH with up to RETRY_DELAYS_MS.length retries using
+        // exponential backoff. After all retries are exhausted the payload is
+        // written to localStorage so it can be recovered on the next page load.
+        const attemptFetch = async (): Promise<Response> => {
+          return fetch(apiEndpoint, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: payload,
+          });
         };
 
-        try {
-          const response = await fetch(apiEndpoint, requestInit);
-          if (!response.ok) {
-            const errorBody = await response.text();
-            throw new Error(`Failed to save (${response.status}): ${errorBody}`);
+        let response: Response | null = null;
+        let lastErr: unknown = null;
+
+        for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+          if (attempt > 0) {
+            await new Promise<void>((resolve) =>
+              setTimeout(resolve, RETRY_DELAYS_MS[attempt - 1]),
+            );
+          }
+          try {
+            response = await attemptFetch();
+            if (response.ok) {
+              lastErr = null;
+              break;
+            }
+            // 4xx errors are definitive — don't retry
+            if (response.status >= 400 && response.status < 500) break;
+            lastErr = new Error(`HTTP ${response.status}`);
+          } catch (err) {
+            lastErr = err;
+            response = null;
+          }
+        }
+
+        if (!response?.ok) {
+          // Persist payload to localStorage so the user doesn't lose work
+          try {
+            localStorage.setItem(localStorageKey(sceneId), payload);
+          } catch {
+            // Storage quota exceeded or private browsing — silently ignore
           }
 
-          // Replace local data: URLs with blob URLs returned by the server.
-          // This prevents re-sending large base64 payloads on every subsequent
-          // save and keeps the payload well under serverless body-size limits.
-          try {
-            const result = await response.json();
-            if (result?.content?.files && excalidrawRef.current) {
-              const localFiles = excalidrawRef.current.getFiles();
-              const serverFiles = result.content.files as Record<string, any>;
-              for (const [fileId, serverFile] of Object.entries(serverFiles)) {
-                if (
-                  localFiles[fileId] &&
-                  serverFile?.dataURL &&
-                  /^https?:\/\//.test(serverFile.dataURL)
-                ) {
-                  (localFiles[fileId] as any).dataURL = serverFile.dataURL;
-                }
+          const errMessage =
+            lastErr instanceof Error
+              ? lastErr.message
+              : response
+                ? `Failed to save (${response.status})`
+                : "Failed to save (network)";
+          setSaveError(errMessage);
+          console.error("[useThrottledSceneSave] save failed after retries", lastErr ?? response?.status);
+          return false;
+        }
+
+        // Successful save — clear any stale localStorage fallback
+        try {
+          localStorage.removeItem(localStorageKey(sceneId));
+        } catch {
+          // ignore
+        }
+
+        // Replace local data: URLs with blob URLs returned by the server.
+        // This prevents re-sending large base64 payloads on every subsequent
+        // save and keeps the payload well under serverless body-size limits.
+        try {
+          const result = await response.json();
+          if (result?.content?.files && excalidrawRef.current) {
+            const localFiles = excalidrawRef.current.getFiles();
+            const serverFiles = result.content.files as Record<string, any>;
+            for (const [fileId, serverFile] of Object.entries(serverFiles)) {
+              if (
+                localFiles[fileId] &&
+                serverFile?.dataURL &&
+                /^https?:\/\//.test(serverFile.dataURL)
+              ) {
+                (localFiles[fileId] as any).dataURL = serverFile.dataURL;
               }
             }
-          } catch {
-            // Response may not be JSON or may lack file data — ignore
           }
-        } catch (networkErr: any) {
-          setSaveError(
-            networkErr instanceof Error
-              ? networkErr.message
-              : "Failed to save (network)",
-          );
-          console.error("[useThrottledSceneSave] save failed", networkErr);
-          return false;
+        } catch {
+          // Response may not be JSON or may lack file data — ignore
         }
       }
 
@@ -309,6 +370,15 @@ export function useThrottledSceneSave(
     return performSave();
   }, [enabled, throttledSave, performSave, isDirty]);
 
+  const clearLocalFallback = useCallback(() => {
+    try {
+      localStorage.removeItem(localStorageKey(sceneId));
+    } catch {
+      // ignore
+    }
+    setHasLocalFallback(false);
+  }, [sceneId]);
+
   /**
    * Check if save is needed
    */
@@ -336,6 +406,12 @@ export function useThrottledSceneSave(
     setIsDirty(false);
     setSaveError(null);
     throttledSaveRef.current?.cancel();
+    // Re-check localStorage fallback for the new scene
+    try {
+      setHasLocalFallback(!!localStorage.getItem(localStorageKey(sceneId)));
+    } catch {
+      setHasLocalFallback(false);
+    }
   }, [sceneId]);
 
   useEffect(() => {
@@ -377,10 +453,20 @@ export function useThrottledSceneSave(
       }
     };
 
+    // Warn the user before navigating away with unsaved changes.
+    // Modern browsers show a generic "Leave site?" dialog when this fires.
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasPendingSaveRef.current || isDirty) {
+        e.preventDefault();
+      }
+    };
+
     window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [isDirty, saveImmediately]);
@@ -390,6 +476,8 @@ export function useThrottledSceneSave(
     isDirty,
     saveError,
     lastSaved,
+    hasLocalFallback,
+    clearLocalFallback,
     handleChange,
     saveImmediately,
     flushPendingSave,
