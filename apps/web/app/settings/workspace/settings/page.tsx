@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Save as SaveIcon, Upload as UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -137,9 +138,11 @@ export default function WorkspaceSettingsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="w-14 h-14 rounded-lg border border-border bg-secondary overflow-hidden flex items-center justify-center text-sm font-semibold text-foreground">
               {workspace?.logoUrl ? (
-                <img
+                <Image
                   src={workspace.logoUrl}
                   alt="Workspace logo"
+                  width={56}
+                  height={56}
                   className="w-full h-full object-cover"
                 />
               ) : (

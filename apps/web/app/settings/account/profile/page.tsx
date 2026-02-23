@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useClerk, useUser } from "@clerk/nextjs";
 import {
   Link2,
@@ -106,9 +107,11 @@ export default function ProfileSettingsPage() {
           <div className="flex items-center gap-5">
             <div className="w-20 h-20 rounded-2xl overflow-hidden border border-border bg-secondary flex items-center justify-center text-lg font-semibold text-foreground">
               {user?.imageUrl ? (
-                <img
+                <Image
                   src={user.imageUrl}
                   alt="Profile"
+                  width={80}
+                  height={80}
                   className="w-full h-full object-cover"
                 />
               ) : (

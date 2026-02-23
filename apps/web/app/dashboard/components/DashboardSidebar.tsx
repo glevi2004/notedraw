@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -71,17 +72,20 @@ function SidebarAvatar({
   return (
     <div
       className={cn(
-        "overflow-hidden flex items-center justify-center text-xs font-semibold flex-shrink-0",
+        "relative overflow-hidden flex items-center justify-center text-xs font-semibold flex-shrink-0",
         sizeClass,
         roundedClass,
       )}
     >
       {imageUrl && !imageErrored ? (
-        <img
+        <Image
           src={imageUrl}
           alt={`${name} avatar`}
-          className="w-full h-full object-cover"
+          fill
+          className="object-cover"
           onError={() => setImageErrored(true)}
+          sizes="64px"
+          unoptimized={imageUrl.startsWith("data:")}
         />
       ) : (
         <div

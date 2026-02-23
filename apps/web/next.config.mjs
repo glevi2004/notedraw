@@ -1,6 +1,9 @@
 import path from "path";
 import { fileURLToPath } from "url";
 import { withSentryConfig } from "@sentry/nextjs";
+import bundleAnalyzer from "@next/bundle-analyzer";
+
+const withBundleAnalyzer = bundleAnalyzer({ enabled: process.env.ANALYZE === "true" });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packagesDir = path.resolve(__dirname, "../../packages");
@@ -55,6 +58,17 @@ const nextConfig = {
     ];
   },
 
+  // Optimise remote images via Next.js Image component (automatic WebP/AVIF, responsive sizing)
+  images: {
+    remotePatterns: [
+      // Clerk user profile images
+      { protocol: "https", hostname: "img.clerk.com" },
+      { protocol: "https", hostname: "images.clerk.dev" },
+      // Vercel Blob — workspace logos, share snapshots, collab file uploads
+      { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
+    ],
+  },
+
   // Transpile the local @excalidraw packages (they are raw TS source, no dist/)
   transpilePackages: [
     "@excalidraw/excalidraw",
@@ -96,7 +110,7 @@ const nextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
+export default withSentryConfig(withBundleAnalyzer(nextConfig), {
   // Sentry org/project — read from env so this file stays secrets-free
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
