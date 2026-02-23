@@ -319,7 +319,7 @@ API route handlers should wrap async logic in try/catch and return consistent er
 
 ## 4. Performance
 
-### 4.1 No image optimization configured — P1
+### 4.1 No image optimization configured — P1 ✅ DONE
 
 `next.config.mjs` has no `images` configuration. The app uses `<img>` tags directly rather than Next.js `<Image>` in several places (workspace logos, user avatars from Clerk). This means:
 - No automatic WebP/AVIF conversion
@@ -333,7 +333,7 @@ API route handlers should wrap async logic in try/catch and return consistent er
 
 ---
 
-### 4.2 No bundle analysis — P2
+### 4.2 No bundle analysis — P2 ✅ DONE
 
 There is no bundle size visibility. The custom Excalidraw packages are transpiled from raw TypeScript source, which could include unintended large dependencies.
 
@@ -344,7 +344,7 @@ There is no bundle size visibility. The custom Excalidraw packages are transpile
 
 ---
 
-### 4.3 Scene list loads all scenes — P2
+### 4.3 Scene list loads all scenes — P2 ✅ DONE
 
 The `GET /api/scenes` route likely fetches all scenes for a workspace without pagination. A workspace with hundreds of scenes will load slowly and strain the database.
 
@@ -366,7 +366,7 @@ The `GET /api/scenes` route likely fetches all scenes for a workspace without pa
 
 ---
 
-### 4.5 No caching strategy for API routes — P2
+### 4.5 No caching strategy for API routes — P2 ✅ DONE
 
 All API routes return no cache headers. Endpoints like `GET /api/workspaces`, `GET /api/scenes`, and `GET /api/share/[id]` could benefit from short-lived caching.
 
