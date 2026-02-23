@@ -4,6 +4,14 @@
  * Or: node dist/index.js [--stdio]
  */
 
+import * as Sentry from "@sentry/node";
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+  environment: process.env.NODE_ENV ?? "development",
+});
+
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -41,6 +49,7 @@ export async function startStreamableHTTPServer(
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
     } catch (error) {
+      Sentry.captureException(error);
       console.error("MCP error:", error);
       if (!res.headersSent) {
         res.status(500).json({
