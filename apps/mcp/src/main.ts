@@ -34,6 +34,10 @@ export async function startStreamableHTTPServer(
   const app = createMcpExpressApp({ host: "0.0.0.0" });
   app.use(cors());
 
+  app.get("/healthz", (_req: Request, res: Response) => {
+    res.json({ ok: true, version: process.env.VERCEL_GIT_COMMIT_SHA ?? "dev" });
+  });
+
   app.all("/mcp", async (req: Request, res: Response) => {
     const server = createServer();
     const transport = new StreamableHTTPServerTransport({
