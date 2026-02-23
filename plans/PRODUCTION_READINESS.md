@@ -379,7 +379,7 @@ All API routes return no cache headers. Endpoints like `GET /api/workspaces`, `G
 
 ## 5. Testing & Quality
 
-### 5.1 No CI/CD pipeline — P0
+### 5.1 No CI/CD pipeline — P0 ✅ DONE
 
 There are no GitHub Actions workflows. Code can be merged and deployed without any automated checks. Broken builds, type errors, and test failures are only discovered after deploy.
 
@@ -409,7 +409,7 @@ For Vercel preview deployments, connect the GitHub repo to Vercel — it handles
 
 ---
 
-### 5.2 Minimal test coverage — P1
+### 5.2 Minimal test coverage — P1 ✅ DONE (unit tests; integration/E2E deferred)
 
 Only one test file exists (`ExcalidrawWithNotes.test.tsx`). The entire API layer, auth layer, scene saving logic, permission model, and collab server are untested.
 
@@ -433,7 +433,7 @@ Only one test file exists (`ExcalidrawWithNotes.test.tsx`). The entire API layer
 
 ---
 
-### 5.3 ESLint configuration gaps — P2
+### 5.3 ESLint configuration gaps — P2 ✅ DONE
 
 Verify ESLint is configured with rules appropriate for production:
 - `no-console` to prevent `console.log` in production code
@@ -444,7 +444,7 @@ Verify ESLint is configured with rules appropriate for production:
 
 ---
 
-### 5.4 No type safety on API contracts — P2
+### 5.4 No type safety on API contracts — P2 ✅ DONE
 
 API routes accept and return untyped JSON. The `packages/ai-contracts` exists for AI tool schemas, but there are no shared Zod schemas for the main API request/response shapes.
 
