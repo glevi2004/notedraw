@@ -4,6 +4,16 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import { Redis } from "ioredis";
 import * as Sentry from "@sentry/node";
 import { z } from "zod";
+import pino from "pino";
+
+const log = pino({
+  level: process.env.LOG_LEVEL ?? "info",
+  // Pretty-print in development; structured JSON in production (consumed by log drain)
+  transport:
+    process.env.NODE_ENV !== "production"
+      ? { target: "pino-pretty", options: { colorize: true } }
+      : undefined,
+});
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -23,8 +33,8 @@ const MAX_PAYLOAD_BYTES = Number(
 
 // In production, COLLAB_ALLOWED_ORIGINS must be set — deny-all is never a safe fallback
 if (process.env.NODE_ENV === "production" && !ALLOWED_ORIGINS.length) {
-  console.error(
-    "FATAL: COLLAB_ALLOWED_ORIGINS must be set in production. " +
+  log.fatal(
+    "COLLAB_ALLOWED_ORIGINS must be set in production. " +
       "Set it to a comma-separated list of allowed origins, e.g. https://notedraw.com",
   );
   process.exit(1);
@@ -171,22 +181,22 @@ io.on("connection", (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`collab server listening on :${PORT}`);
+  log.info({ port: PORT }, "collab server listening");
 });
 
 // Graceful shutdown: drain active Socket.IO connections before exiting so
 // users don't lose unsaved data mid-collaboration session.
 const shutdown = (signal: string) => {
-  console.log(`${signal} received — draining connections…`);
+  log.info({ signal }, "received signal — draining connections");
   io.close(() => {
     server.close(() => {
-      console.log("collab server stopped");
+      log.info("collab server stopped");
       process.exit(0);
     });
   });
   // Force-exit after 10 s if connections refuse to drain
   setTimeout(() => {
-    console.error("Forced exit after drain timeout");
+    log.error("forced exit after drain timeout");
     process.exit(1);
   }, 10_000).unref();
 };

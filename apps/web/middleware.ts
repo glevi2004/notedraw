@@ -1,5 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -46,16 +47,34 @@ function csrfCheck(req: Request): NextResponse | null {
 }
 
 export default clerkMiddleware(async (auth, req) => {
+  const isApiRoute = req.nextUrl.pathname.startsWith("/api/");
+  // Reuse the client-supplied ID for trace correlation, or mint a new one
+  const requestId = req.headers.get("x-request-id") ?? randomUUID();
+
   if (isPublicRoute(req)) {
+    if (isApiRoute) {
+      const res = NextResponse.next();
+      res.headers.set("x-request-id", requestId);
+      return res;
+    }
     return;
   }
 
   if (!isWebhookRoute(req)) {
     const csrfError = csrfCheck(req);
-    if (csrfError) return csrfError;
+    if (csrfError) {
+      csrfError.headers.set("x-request-id", requestId);
+      return csrfError;
+    }
   }
 
   await auth.protect();
+
+  if (isApiRoute) {
+    const res = NextResponse.next();
+    res.headers.set("x-request-id", requestId);
+    return res;
+  }
 });
 
 export const config = {
