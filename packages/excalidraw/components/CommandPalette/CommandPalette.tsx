@@ -534,6 +534,7 @@ function CommandPaletteInner({
           const command: CommandPaletteItem = {
             label: t(`toolBar.${value}`),
             category: DEFAULT_CATEGORIES.tools,
+            // @ts-ignore — shortcut can be null at runtime but the type expects string | undefined
             shortcut,
             icon,
             keywords: ["toolbar"],

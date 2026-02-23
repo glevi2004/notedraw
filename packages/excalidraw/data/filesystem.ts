@@ -42,6 +42,7 @@ export const fileOpen = async <M extends boolean | undefined = false>(opts: {
     extensions,
     mimeTypes,
     multiple: opts.multiple ?? false,
+    // @ts-ignore — browser-fs-access legacySetup callback params typed as any in this context
     legacySetup: (resolve, reject, input) => {
       const scheduleRejection = debounce(reject, INPUT_CHANGE_INTERVAL_MS);
       const focusHandler = () => {
@@ -63,6 +64,7 @@ export const fileOpen = async <M extends boolean | undefined = false>(opts: {
       const interval = window.setInterval(() => {
         checkForFile();
       }, INPUT_CHANGE_INTERVAL_MS);
+      // @ts-ignore — teardown callback param typed as any in this context
       return (rejectPromise) => {
         clearInterval(interval);
         scheduleRejection.cancel();

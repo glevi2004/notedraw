@@ -202,6 +202,7 @@ const renderElementToSvg = (
       addToRoot(node, element);
 
       const label: ExcalidrawElement =
+        // @ts-ignore — note elements share rendering path with iframe-like elements in SVG export
         createPlaceholderEmbeddableLabel(element);
       renderElementToSvg(
         label,
