@@ -53,10 +53,6 @@ export default function Features() {
               <p className="text-sm text-muted-foreground leading-relaxed">
                 {feature.description}
               </p>
-              {/* Placeholder for screenshot */}
-              <div className="mt-4 rounded-lg bg-secondary/50 border border-border/50 aspect-video flex items-center justify-center">
-                <span className="text-xs text-muted-foreground">App screenshot coming soon</span>
-              </div>
             </div>
           ))}
         </div>

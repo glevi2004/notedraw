@@ -251,6 +251,31 @@ export default function SceneDemo() {
     };
   }, [isInteractive]);
 
+  // Deactivate scene when scrolled past it
+  useEffect(() => {
+    if (!isInteractive || !containerRef.current) return;
+
+    const handleScroll = () => {
+      if (!containerRef.current) return;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      
+      // Deactivate if the scene is completely above or below the viewport
+      const isAboveViewport = rect.bottom < 0;
+      const isBelowViewport = rect.top > viewportHeight;
+      
+      if (isAboveViewport || isBelowViewport) {
+        setIsInteractive(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [isInteractive]);
+
   const initialData = useMemo(() => {
     const stored = getStoredScene();
     if (stored) return stored;
