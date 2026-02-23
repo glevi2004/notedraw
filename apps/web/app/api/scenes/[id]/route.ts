@@ -140,6 +140,8 @@ async function updateScene(
             if (!base64Data) continue;
             const buffer = Buffer.from(base64Data, "base64");
             const blob = await put(filename, buffer, {
+              // Public: the browser needs direct access to embedded scene media.
+              // Access is controlled at the scene level (scene PATCH requires edit permission).
               access: "public",
               allowOverwrite: true,
               contentType: file.mimeType ?? "application/octet-stream",

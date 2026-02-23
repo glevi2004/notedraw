@@ -51,6 +51,9 @@ export async function POST(req: Request) {
     const blobPath = `share/${id}/scene.bin`;
 
     await put(blobPath, Buffer.from(buffer), {
+      // Public by design: share links are intentionally world-readable.
+      // The unguessable share ID in the URL is the access-control mechanism.
+      // Expired snapshots are cleaned up by the /api/cron/cleanup job (see plan 6.4).
       access: "public",
       contentType: "application/octet-stream",
       allowOverwrite: true,
