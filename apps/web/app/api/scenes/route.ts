@@ -60,6 +60,15 @@ export async function GET(req: NextRequest) {
     const query = queryRaw.trim();
     const hasQuery = query.length >= 2;
 
+    // Optional pagination — when `limit` is present, return { items, hasMore }
+    // instead of a flat array so callers can implement "Load more" UX.
+    // Backwards-compatible: callers that omit `limit` receive a flat array.
+    const limitRaw = searchParams.get("limit");
+    const skipRaw = searchParams.get("skip");
+    const isPaginated = limitRaw !== null;
+    const limit = Math.min(Math.max(parseInt(limitRaw ?? "200", 10), 1), 200);
+    const skip = Math.max(parseInt(skipRaw ?? "0", 10), 0);
+
     const workspaceId = await resolveActiveWorkspaceId(user.id, requestedWorkspaceId);
     if (!workspaceId) {
       return NextResponse.json([], { status: 200 });
@@ -120,7 +129,7 @@ export async function GET(req: NextRequest) {
             )
           )
         ORDER BY s."updatedAt" DESC
-        LIMIT 200
+        LIMIT ${limit} OFFSET ${skip}
       `;
     } else {
       const where: Prisma.SceneWhereInput = {
@@ -142,7 +151,8 @@ export async function GET(req: NextRequest) {
           lastEditedBy: true,
           createdAt: true,
         },
-        take: 200,
+        take: limit,
+        skip,
       });
     }
 
@@ -156,14 +166,25 @@ export async function GET(req: NextRequest) {
       }),
     );
 
-    return NextResponse.json(
-      await attachEditorNames(
-        accessible.filter(
-          (scene): scene is NonNullable<(typeof accessible)[number]> =>
-            scene !== null,
-        ),
+    const items = await attachEditorNames(
+      accessible.filter(
+        (scene): scene is NonNullable<(typeof accessible)[number]> =>
+          scene !== null,
       ),
     );
+
+    const headers = {
+      "Cache-Control": "private, max-age=10, stale-while-revalidate=30",
+    };
+
+    if (isPaginated) {
+      return NextResponse.json(
+        { items, hasMore: items.length === limit },
+        { headers },
+      );
+    }
+
+    return NextResponse.json(items, { headers });
   } catch (error) {
     console.error("Error fetching scenes:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Lock, MoreHorizontal } from "lucide-react";
 import { ScenePreview } from "@/components/ScenePreview";
@@ -13,6 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+const PAGE_SIZE = 50;
 
 interface SceneSidebarListProps {
   query: string;
@@ -35,31 +37,40 @@ interface SceneListItem {
 export function SceneSidebarList({ query, workspaceId }: SceneSidebarListProps) {
   const [scenes, setScenes] = useState<SceneListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [skip, setSkip] = useState(0);
   const pathname = usePathname();
   const router = useRouter();
 
   const activeId = useMemo(() => pathname.split("/").pop() || "", [pathname]);
 
+  const fetchScenes = useCallback(
+    async (currentSkip: number, signal: AbortSignal, append: boolean) => {
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), skip: String(currentSkip) });
+      const trimmed = query.trim();
+      if (workspaceId) params.set("workspaceId", workspaceId);
+      if (trimmed.length >= 2) params.set("q", trimmed);
+
+      const res = await fetch(`/api/scenes?${params.toString()}`, { signal });
+      if (!res.ok) return;
+      const data = (await res.json()) as { items: SceneListItem[]; hasMore: boolean };
+      setHasMore(data.hasMore);
+      setScenes((prev) => (append ? [...prev, ...data.items] : data.items));
+    },
+    [query, workspaceId],
+  );
+
+  // Re-fetch from scratch when query or workspaceId changes
   useEffect(() => {
     const controller = new AbortController();
-    const run = async () => {
-      setLoading(true);
-      const params = new URLSearchParams({ includeAll: "1" });
-      const trimmed = query.trim();
-      if (workspaceId) {
-        params.set("workspaceId", workspaceId);
-      }
-      if (trimmed.length >= 2) {
-        params.set("q", trimmed);
-      }
+    setSkip(0);
+    setHasMore(false);
+    setLoading(true);
 
+    const run = async () => {
       try {
-        const res = await fetch(`/api/scenes?${params.toString()}`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as SceneListItem[];
-        setScenes(data);
+        await fetchScenes(0, controller.signal, false);
       } catch (err) {
         if ((err as any)?.name !== "AbortError") {
           console.error("SceneSidebarList fetch failed", err);
@@ -74,9 +85,20 @@ export function SceneSidebarList({ query, workspaceId }: SceneSidebarListProps) 
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [query, workspaceId]);
+  }, [fetchScenes]);
 
-  const list = useMemo(() => scenes.slice(0, 100), [scenes]);
+  const handleLoadMore = useCallback(async () => {
+    const nextSkip = skip + PAGE_SIZE;
+    setSkip(nextSkip);
+    setLoadingMore(true);
+    try {
+      await fetchScenes(nextSkip, new AbortController().signal, true);
+    } catch (err) {
+      console.error("SceneSidebarList load-more failed", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [skip, fetchScenes]);
 
   if (loading) {
     return (
@@ -84,7 +106,7 @@ export function SceneSidebarList({ query, workspaceId }: SceneSidebarListProps) 
     );
   }
 
-  if (!list.length) {
+  if (!scenes.length) {
     return (
       <div className="px-3 py-2 text-xs text-muted-foreground">
         {query.trim().length >= 2 ? "No scenes match your search." : "No scenes yet."}
@@ -94,7 +116,7 @@ export function SceneSidebarList({ query, workspaceId }: SceneSidebarListProps) 
 
   return (
     <div className="mt-2 space-y-1 pb-3">
-      {list.map((scene) => {
+      {scenes.map((scene) => {
         const isActive = scene.id === activeId;
 
         const handleRename = async () => {
@@ -234,6 +256,16 @@ export function SceneSidebarList({ query, workspaceId }: SceneSidebarListProps) 
           </div>
         );
       })}
+
+      {hasMore && (
+        <button
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+          className="w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        >
+          {loadingMore ? "Loading…" : "Load more"}
+        </button>
+      )}
     </div>
   );
 }
