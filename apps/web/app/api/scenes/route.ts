@@ -11,6 +11,7 @@ import {
 } from "@/lib/auth";
 import { buildSceneSearchText } from "@/lib/scene-search";
 import { db } from "@/lib/db";
+export const runtime = 'nodejs';
 
 async function attachEditorNames(
   scenes: Array<{
@@ -83,37 +84,67 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const searchFilter: Prisma.SceneWhereInput | undefined = hasQuery
-      ? {
-          OR: [
-            { title: { contains: query, mode: "insensitive" } },
-            { searchText: { contains: query, mode: "insensitive" } },
-          ],
-        }
-      : undefined;
-
-    const where: Prisma.SceneWhereInput = {
-      workspaceId,
-      ...(collectionId ? { collectionId } : {}),
-      ...(searchFilter || {}),
+    // Use PostgreSQL full-text search when a query is present — leverages the
+    // GIN index on to_tsvector('english', searchText) added in migration 0002.
+    // plainto_tsquery normalises the input (splits on whitespace, ignores operators)
+    // so it is safe to pass raw user input without escaping.
+    // Title is also matched via ILIKE so short prefix searches still work.
+    type SceneRow = {
+      id: string;
+      title: string;
+      content: Prisma.JsonValue | null;
+      workspaceId: string;
+      collectionId: string | null;
+      updatedAt: Date;
+      lastEditedAt: Date | null;
+      lastEditedBy: string | null;
+      createdAt: Date;
     };
 
-    const scenes = await db.scene.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        workspaceId: true,
-        collectionId: true,
-        updatedAt: true,
-        lastEditedAt: true,
-        lastEditedBy: true,
-        createdAt: true,
-      },
-      take: 200,
-    });
+    let scenes: SceneRow[];
+
+    if (hasQuery) {
+      const collectionFilter = collectionId ? Prisma.sql`AND s."collectionId" = ${collectionId}` : Prisma.empty;
+      scenes = await db.$queryRaw<SceneRow[]>`
+        SELECT
+          s."id", s."title", s."content", s."workspaceId", s."collectionId",
+          s."updatedAt", s."lastEditedAt", s."lastEditedBy", s."createdAt"
+        FROM "Scene" s
+        WHERE s."workspaceId" = ${workspaceId}
+          ${collectionFilter}
+          AND (
+            s."title" ILIKE ${'%' + query + '%'}
+            OR (
+              s."searchText" IS NOT NULL
+              AND to_tsvector('english', s."searchText") @@ plainto_tsquery('english', ${query})
+            )
+          )
+        ORDER BY s."updatedAt" DESC
+        LIMIT 200
+      `;
+    } else {
+      const where: Prisma.SceneWhereInput = {
+        workspaceId,
+        ...(collectionId ? { collectionId } : {}),
+      };
+
+      scenes = await db.scene.findMany({
+        where,
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          workspaceId: true,
+          collectionId: true,
+          updatedAt: true,
+          lastEditedAt: true,
+          lastEditedBy: true,
+          createdAt: true,
+        },
+        take: 200,
+      });
+    }
 
     const accessible = await Promise.all(
       scenes.map(async (scene) => {
@@ -196,16 +227,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const resolvedContent =
+      content === undefined || content === null
+        ? Prisma.JsonNull
+        : (content as Prisma.InputJsonValue);
+
     const scene = await db.scene.create({
       data: {
         title: title.trim(),
         workspaceId,
         collectionId: collectionId || null,
         createdById: user.id,
-        content:
-          content === undefined || content === null
-            ? Prisma.JsonNull
-            : (content as Prisma.InputJsonValue),
+        content: resolvedContent,
+        contentSize:
+          content !== undefined && content !== null
+            ? Buffer.byteLength(JSON.stringify(content), "utf8")
+            : 0,
         searchText: buildSceneSearchText({
           title: title.trim(),
           content,

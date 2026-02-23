@@ -12,6 +12,7 @@ import {
 import { buildSceneSearchText } from "@/lib/scene-search";
 import { db } from "@/lib/db";
 import { checkSceneSaveRateLimit } from "@/lib/rate-limit";
+export const runtime = 'nodejs';
 
 async function updateScene(
   req: NextRequest,
@@ -163,9 +164,11 @@ async function updateScene(
     if (content === null) {
       nextContent = null;
       updateData.content = Prisma.JsonNull;
+      updateData.contentSize = 0;
     } else {
       nextContent = content as Prisma.JsonValue;
       updateData.content = content as Prisma.InputJsonValue;
+      updateData.contentSize = Buffer.byteLength(JSON.stringify(content), "utf8");
     }
   }
 
