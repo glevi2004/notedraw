@@ -2,7 +2,14 @@ import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { Redis } from "ioredis";
+import * as Sentry from "@sentry/node";
 import { z } from "zod";
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+  environment: process.env.NODE_ENV ?? "development",
+});
 
 const PORT = Number(process.env.PORT || 4001);
 const REDIS_URL = process.env.COLLAB_REDIS_URL;
@@ -166,3 +173,23 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`collab server listening on :${PORT}`);
 });
+
+// Graceful shutdown: drain active Socket.IO connections before exiting so
+// users don't lose unsaved data mid-collaboration session.
+const shutdown = (signal: string) => {
+  console.log(`${signal} received — draining connections…`);
+  io.close(() => {
+    server.close(() => {
+      console.log("collab server stopped");
+      process.exit(0);
+    });
+  });
+  // Force-exit after 10 s if connections refuse to drain
+  setTimeout(() => {
+    console.error("Forced exit after drain timeout");
+    process.exit(1);
+  }, 10_000).unref();
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
