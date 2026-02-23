@@ -298,12 +298,12 @@ export default function SceneDemo() {
   );
 
   return (
-    <section className="w-full px-3 sm:px-32 pb-20" id="demo">
+    <section className="w-full px-3 sm:px-32 pb-20 scroll-mt-20" id="demo">
       {/* Full-bleed canvas — matches Cluely app preview proportions */}
       <div
         ref={containerRef}
         className="relative w-full overflow-hidden rounded-2xl border border-border shadow-2xl"
-        style={{ height: 'clamp(480px, 72vh, 860px)' }}
+        style={{ height: 'clamp(560px, 78vh, 960px)' }}
         onClick={!isInteractive ? handleActivate : undefined}
         onMouseDown={(e) => {
           if (isInteractive) e.stopPropagation();

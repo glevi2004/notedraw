@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
@@ -647,6 +648,17 @@ export function DashboardSidebar({
               </div>
             </div>
           )}
+          
+          {/* Back to Landing Page link */}
+          <Link
+            href="/landing"
+            className={cn(
+              "block text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors text-center mt-2",
+              sidebarCollapsed && "hidden"
+            )}
+          >
+            Back to Landing Page
+          </Link>
         </div>
       </aside>
 

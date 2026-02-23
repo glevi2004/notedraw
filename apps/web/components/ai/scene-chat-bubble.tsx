@@ -62,9 +62,19 @@ export function SceneChatBubble() {
       defaultHeight: DEFAULT_HEIGHT,
     });
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages (only within the messages container, not the page)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      // Find the scrollable parent container (the messages div with overflow-y-auto)
+      const scrollableParent = messagesEndRef.current.closest('.overflow-y-auto');
+      if (scrollableParent) {
+        // Scroll the container directly instead of using scrollIntoView to prevent page scrolling
+        scrollableParent.scrollTo({
+          top: scrollableParent.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }
   }, [messages]);
 
   // Reset position when bubble opens
