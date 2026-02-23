@@ -1,19 +1,13 @@
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, hasWorkspaceMembership } from '@/lib/auth';
-import Navigation from '@/sections/Navigation';
-import Hero from '@/sections/Hero';
-import SceneDemo from '@/sections/SceneDemo';
-import Features from '@/sections/Features';
-import Testimonials from '@/sections/Testimonials';
-import CTA from '@/sections/CTA';
-import Footer from '@/sections/Footer';
+import LandingPage from '@/sections/LandingPage';
 
 type PageProps = {
   searchParams?: { [key: string]: string | string[] | undefined };
 };
 
-export default async function LandingPage({ searchParams }: PageProps) {
+export default async function Page({ searchParams }: PageProps) {
   const { userId } = await auth();
   const forceLanding = searchParams?.landing === 'true';
 
@@ -27,17 +21,5 @@ export default async function LandingPage({ searchParams }: PageProps) {
     redirect(isOnboarded ? '/dashboard' : '/onboarding');
   }
 
-  return (
-    <>
-      <Navigation />
-      <main>
-        <Hero />
-        <SceneDemo />
-        <Features />
-        <Testimonials />
-        <CTA />
-      </main>
-      <Footer />
-    </>
-  );
+  return <LandingPage />;
 }
