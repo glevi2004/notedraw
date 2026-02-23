@@ -10,6 +10,7 @@ import {
   resolveActiveWorkspaceId,
 } from "@/lib/auth";
 import { buildSceneSearchText } from "@/lib/scene-search";
+import { createSceneSchema, parseBody } from "@/lib/api-schemas";
 import { db } from "@/lib/db";
 export const runtime = 'nodejs';
 
@@ -203,22 +204,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
-    const {
-      title,
-      content,
-      workspaceId: requestedWorkspaceId,
-      collectionId,
-    } = body as {
-      title?: string;
-      content?: unknown;
-      workspaceId?: string;
-      collectionId?: string | null;
-    };
-
-    if (!title?.trim()) {
-      return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    const parsed = parseBody(createSceneSchema, await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
+    const { title, content, workspaceId: requestedWorkspaceId, collectionId } = parsed.data;
 
     const workspaceId = await resolveActiveWorkspaceId(
       user.id,

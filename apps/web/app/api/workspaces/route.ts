@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { createWorkspaceSchema, parseBody } from "@/lib/api-schemas";
 export const runtime = 'nodejs';
 
 export async function GET() {
@@ -58,12 +59,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { name } = body as { name?: string };
-
-    if (!name?.trim()) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    const parsed = parseBody(createWorkspaceSchema, await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
+    const { name } = parsed.data;
 
     const workspace = await db.workspace.create({
       data: {

@@ -46,14 +46,14 @@ import {
 } from "./auth";
 
 // Typed helpers to keep tests concise
-const wsMember = db.workspaceMember as {
+const wsMember = db.workspaceMember as unknown as {
   findUnique: ReturnType<typeof vi.fn>;
   findFirst: ReturnType<typeof vi.fn>;
 };
-const col = db.collection as { findUnique: ReturnType<typeof vi.fn> };
-const teamCol = db.teamCollection as { findMany: ReturnType<typeof vi.fn> };
-const teamMbr = db.teamMember as { count: ReturnType<typeof vi.fn> };
-const scene = db.scene as { findUnique: ReturnType<typeof vi.fn> };
+const col = db.collection as unknown as { findUnique: ReturnType<typeof vi.fn> };
+const teamCol = db.teamCollection as unknown as { findMany: ReturnType<typeof vi.fn> };
+const teamMbr = db.teamMember as unknown as { count: ReturnType<typeof vi.fn> };
+const scene = db.scene as unknown as { findUnique: ReturnType<typeof vi.fn> };
 
 const USER_ID = "user-1";
 const WORKSPACE_ID = "ws-1";
