@@ -8,9 +8,6 @@ const withBundleAnalyzer = bundleAnalyzer({ enabled: process.env.ANALYZE === "tr
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packagesDir = path.resolve(__dirname, "../../packages");
 
-const isDev = process.env.NODE_ENV === "development";
-const isProd = process.env.NODE_ENV === "production";
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async headers() {
@@ -78,15 +75,7 @@ const nextConfig = {
     "@excalidraw/utils",
   ],
 
-  // Provide Vite-style env vars for Excalidraw compatibility with Turbopack
-  turbopack: {
-    define: {
-      "import.meta.env.PROD": isProd ? "true" : "false",
-      "import.meta.env.DEV": isDev ? "true" : "false",
-      "import.meta.env.PKG_NAME": '""', // empty string (falsy) so code uses fallback
-      "import.meta.env.PKG_VERSION": '""',
-    },
-  },
+  turbopack: {},
 
   // Webpack config for use with --webpack flag
   webpack: (config, { isServer }) => {
@@ -110,23 +99,28 @@ const nextConfig = {
   },
 };
 
-export default withSentryConfig(withBundleAnalyzer(nextConfig), {
-  // Sentry org/project
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
+const bundledConfig = withBundleAnalyzer(nextConfig);
 
-  // Auth token for uploading source maps (set in CI, not in local .env)
-  authToken: process.env.SENTRY_AUTH_TOKEN,
+const hasSentryBuildCredentials = Boolean(
+  process.env.SENTRY_AUTH_TOKEN &&
+    process.env.SENTRY_ORG &&
+    process.env.SENTRY_PROJECT,
+);
 
-  // Suppress Sentry CLI output during builds
-  silent: !process.env.CI,
+export default hasSentryBuildCredentials
+  ? withSentryConfig(bundledConfig, {
+      // Sentry org/project
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
 
-  // Hide source maps from the public bundle
-  hideSourceMaps: true,
+      // Auth token for uploading source maps (set in CI/Vercel)
+      authToken: process.env.SENTRY_AUTH_TOKEN,
 
-  // Tree-shake Sentry debug code in production
-  disableLogger: true,
+      // Suppress Sentry CLI output during local builds
+      silent: !process.env.CI,
+      telemetry: false,
 
-  // Automatically instrument Vercel Cron jobs
-  automaticVercelMonitors: true,
-});
+      // Hide source maps from the public bundle
+      hideSourceMaps: true,
+    })
+  : bundledConfig;

@@ -8,11 +8,13 @@ import {
   toIterable,
 } from "@excalidraw/common";
 
-import type App from "@excalidraw/excalidraw/components/App";
-
 import type { DTO, ValueOf } from "@excalidraw/common/utility-types";
 
-import type { AppState, ObservedAppState } from "@excalidraw/excalidraw/types";
+import type {
+  AppClassProperties,
+  AppState,
+  ObservedAppState,
+} from "@excalidraw/excalidraw/types";
 
 import { deepCopyElement } from "./duplicate";
 import { newElementWith } from "./mutateElement";
@@ -96,7 +98,7 @@ export class Store {
     this._snapshot = snapshot;
   }
 
-  constructor(private readonly app: App) {}
+  constructor(private readonly app: AppClassProperties) {}
 
   public scheduleAction(action: CaptureUpdateActionType) {
     this.scheduledMacroActions.add(action);

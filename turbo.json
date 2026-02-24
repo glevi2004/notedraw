@@ -1,6 +1,19 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalEnv": ["NODE_ENV", "VERCEL_ENV", "NEXT_PUBLIC_*", "ANALYZE"],
+  "globalPassThroughEnv": [
+    "BLOB_READ_WRITE_TOKEN",
+    "CLERK_*",
+    "CRON_SECRET",
+    "DATABASE_URL",
+    "DATABASE_URL_UNPOOLED",
+    "NEON_*",
+    "OPENROUTER_API_KEY",
+    "PG*",
+    "POSTGRES_*",
+    "SENTRY_*"
+  ],
   "remoteCache": {
     "signature": true
   },
@@ -11,6 +24,19 @@
     },
     "build": {
       "dependsOn": ["^build"],
+      "env": ["NODE_ENV", "VERCEL_ENV", "NEXT_PUBLIC_*", "ANALYZE"],
+      "passThroughEnv": [
+        "BLOB_READ_WRITE_TOKEN",
+        "CLERK_*",
+        "CRON_SECRET",
+        "DATABASE_URL",
+        "DATABASE_URL_UNPOOLED",
+        "NEON_*",
+        "OPENROUTER_API_KEY",
+        "PG*",
+        "POSTGRES_*",
+        "SENTRY_*"
+      ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "lint": {
