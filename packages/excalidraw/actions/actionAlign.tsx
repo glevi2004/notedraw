@@ -33,6 +33,7 @@ import { isSomeElementSelected } from "../scene";
 import { getShortcutKey } from "../shortcut";
 
 import { register } from "./register";
+import type { PanelComponentProps } from "./types";
 
 import type { AppClassProperties, AppState, UIAppState } from "../types";
 
@@ -95,7 +96,7 @@ export const actionAlignTop = register({
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_UP,
-  PanelComponent: ({ elements, appState, updateData, app }) => (
+  PanelComponent: ({ elements, appState, updateData, app }: PanelComponentProps) => (
     <ToolButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
@@ -129,7 +130,7 @@ export const actionAlignBottom = register({
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_DOWN,
-  PanelComponent: ({ elements, appState, updateData, app }) => (
+  PanelComponent: ({ elements, appState, updateData, app }: PanelComponentProps) => (
     <ToolButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
@@ -163,7 +164,7 @@ export const actionAlignLeft = register({
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_LEFT,
-  PanelComponent: ({ elements, appState, updateData, app }) => (
+  PanelComponent: ({ elements, appState, updateData, app }: PanelComponentProps) => (
     <ToolButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
@@ -197,7 +198,7 @@ export const actionAlignRight = register({
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_RIGHT,
-  PanelComponent: ({ elements, appState, updateData, app }) => (
+  PanelComponent: ({ elements, appState, updateData, app }: PanelComponentProps) => (
     <ToolButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
@@ -229,7 +230,7 @@ export const actionAlignVerticallyCentered = register({
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
-  PanelComponent: ({ elements, appState, updateData, app }) => (
+  PanelComponent: ({ elements, appState, updateData, app }: PanelComponentProps) => (
     <ToolButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
@@ -259,7 +260,7 @@ export const actionAlignHorizontallyCentered = register({
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
-  PanelComponent: ({ elements, appState, updateData, app }) => (
+  PanelComponent: ({ elements, appState, updateData, app }: PanelComponentProps) => (
     <ToolButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
