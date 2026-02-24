@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { getCurrentUser, hasWorkspaceMembership } from '@/lib/auth';
 import { DashboardClient } from './components/DashboardClient';
 
@@ -20,5 +21,9 @@ export default async function DashboardPage() {
     redirect('/onboarding');
   }
 
-  return <DashboardClient />;
+  return (
+    <Suspense fallback={null}>
+      <DashboardClient />
+    </Suspense>
+  );
 }

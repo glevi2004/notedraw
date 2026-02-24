@@ -111,7 +111,7 @@ const nextConfig = {
 };
 
 export default withSentryConfig(withBundleAnalyzer(nextConfig), {
-  // Sentry org/project — read from env so this file stays secrets-free
+  // Sentry org/project
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
 

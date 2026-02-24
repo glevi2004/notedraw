@@ -1,14 +1,19 @@
-import type { App } from "@excalidraw/excalidraw/types";
+import type { AppClassProperties } from "@excalidraw/excalidraw/types";
 
 import { LinearElementEditor } from "../linearElementEditor";
 
 import { handleFocusPointDrag } from "./focus";
 
+type ArrowPointlikeDragApp = AppClassProperties & {
+  lastPointerMoveCoords: { x: number; y: number } | null;
+  lastPointerMoveEvent: PointerEvent | null;
+};
+
 export const maybeHandleArrowPointlikeDrag = ({
   app,
   event,
 }: {
-  app: App;
+  app: ArrowPointlikeDragApp;
   event: KeyboardEvent | React.KeyboardEvent<Element> | PointerEvent;
 }): boolean => {
   const appState = app.state;
