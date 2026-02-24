@@ -109,16 +109,20 @@ const REDIS_KEY_PREFIX = process.env.MCP_CHECKPOINT_PREFIX ?? "notedraw:mcp:cp";
 
 export class RedisCheckpointStore implements CheckpointStore {
   private redis: any = null;
+
   private async getRedis() {
     if (!this.redis) {
-      const { Redis } = await import("@upstash/redis");
-      const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-      const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
-      if (!url || !token) throw new Error("Missing Redis env vars (KV_REST_API_* or UPSTASH_REDIS_REST_*)");
-      this.redis = new Redis({ url, token });
+      const url = process.env.MCP_REDIS_URL;
+      if (!url) {
+        throw new Error("Missing MCP_REDIS_URL");
+      }
+
+      const { default: Redis } = await import("ioredis");
+      this.redis = new Redis(url);
     }
     return this.redis;
   }
+
   async save(id: string, data: { elements: any[] }): Promise<void> {
     validateCheckpointId(id);
     const serialized = JSON.stringify(data);
@@ -126,8 +130,9 @@ export class RedisCheckpointStore implements CheckpointStore {
       throw new Error(`Checkpoint data exceeds ${MAX_CHECKPOINT_BYTES} byte limit`);
     }
     const redis = await this.getRedis();
-    await redis.set(`${REDIS_KEY_PREFIX}:${id}`, serialized, { ex: REDIS_TTL_SECONDS });
+    await redis.set(`${REDIS_KEY_PREFIX}:${id}`, serialized, "EX", REDIS_TTL_SECONDS);
   }
+
   async load(id: string): Promise<{ elements: any[] } | null> {
     validateCheckpointId(id);
     const redis = await this.getRedis();
@@ -137,13 +142,23 @@ export class RedisCheckpointStore implements CheckpointStore {
   }
 }
 
-export function createVercelStore(): CheckpointStore {
+export function createCheckpointStore(): CheckpointStore {
   const backend = process.env.MCP_CHECKPOINT_BACKEND;
   if (backend === "memory") return new MemoryCheckpointStore();
   if (backend === "file") return new FileCheckpointStore();
+  if (backend === "redis") return new RedisCheckpointStore();
 
-  if (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL) {
+  if (backend) {
+    throw new Error(
+      `Unknown MCP_CHECKPOINT_BACKEND "${backend}". Expected one of: file, memory, redis.`,
+    );
+  }
+
+  if (process.env.MCP_REDIS_URL) {
     return new RedisCheckpointStore();
   }
-  return new MemoryCheckpointStore();
+
+  return process.env.NODE_ENV === "production"
+    ? new MemoryCheckpointStore()
+    : new FileCheckpointStore();
 }

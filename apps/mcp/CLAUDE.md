@@ -63,9 +63,9 @@ Two-tier storage for diagram state persistence:
 ### Architecture
 1. **Server-side store** (primary): `CheckpointStore` interface with 3 implementations:
    - `FileCheckpointStore` — local dev, writes JSON to `$TMPDIR/excalidraw-mcp-checkpoints/`
-   - `MemoryCheckpointStore` — Vercel fallback (in-memory Map, lost on cold start)
-   - `RedisCheckpointStore` — Vercel with Upstash KV (persistent, 30-day TTL)
-   - Factory: `createVercelStore()` picks Redis if env vars exist, else Memory
+   - `MemoryCheckpointStore` — process-local fallback (in-memory Map, lost on restart)
+   - `RedisCheckpointStore` — standard Redis (Render Key Value / Redis compatible, 30-day TTL)
+   - Factory: `createCheckpointStore()` picks explicit backend or auto-detects `MCP_REDIS_URL`
 
 2. **localStorage** (widget-side cache): Fast local cache keyed by `excalidraw:<checkpointId>` for persisting user edits across page reloads within the same session.
 
@@ -88,7 +88,7 @@ npm install
 npm run build
 ```
 
-Build pipeline: `tsc --noEmit` → `vite build` (singlefile HTML) → `tsc -p tsconfig.server.json` → `bun build` (server + index).
+Build pipeline: `vite build` (singlefile HTML) → `bun build` (server + index).
 
 ## Running
 

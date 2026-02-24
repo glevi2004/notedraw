@@ -47,7 +47,7 @@ Notedraw is a collaborative whiteboard and note-taking application built on top 
                   ▼                   ▼
    ┌──────────────────────┐  ┌──────────────────────┐
    │  Next.js API Routes  │  │  Collab Server        │
-   │  (Vercel serverless) │  │  (apps/collab)        │
+   │  (Vercel serverless) │  │  (Render web svc)     │
    │  - REST + SSE        │  │  Socket.IO            │
    │  - Prisma ORM        │  │  Real-time sync       │
    └──────────┬───────────┘  └──────────┬────────────┘
@@ -223,7 +223,7 @@ Scene content is auto-saved with a **10-second throttle** (configurable via `SYN
 
 **Stack:** Node.js, TypeScript (ESM), Socket.IO 4.8, ioredis, Zod
 
-A dedicated long-lived WebSocket server for real-time collaboration. Deployed as a persistent Node.js process (not serverless) on a platform like Railway, Fly.io, or a VPS.
+A dedicated long-lived WebSocket server for real-time collaboration. Deployed as a persistent Node.js process (not serverless), currently on Render.
 
 #### Protocol
 
@@ -265,17 +265,16 @@ When `COLLAB_REDIS_URL` is set, the server uses `@socket.io/redis-adapter` to pu
 
 ### 3.3 `mcp` (Model Context Protocol)
 
-**Stack:** Node.js (Bun/ESM), TypeScript, `@modelcontextprotocol/sdk`, Express 5, Vite, React 19 (server-side widget rendering), Upstash Redis
+**Stack:** Node.js (Bun/ESM), TypeScript, `@modelcontextprotocol/sdk`, Express 5, Vite, React 19 (server-side widget rendering), Redis (Render Key Value / Redis)
 
 A standalone MCP server that exposes Notedraw's Excalidraw rendering capabilities to external AI clients (Claude Desktop, Claude.ai, ChatGPT with tool use).
 
 #### Transport Modes
 
-The MCP server supports three transports:
+The MCP server supports two transports:
 
 1. **HTTP Streamable** (`POST /mcp`) — Stateless request/response for web-based AI clients
 2. **stdio** (`node dist/index.js --stdio`) — For Claude Desktop and local integrations
-3. **Vercel Serverless** (`/api/mcp`) — Single-function deployment on Vercel via `api/mcp.ts`
 
 #### MCP Tools
 
@@ -290,8 +289,8 @@ The MCP server supports three transports:
 #### Checkpoint System
 
 Three-tier storage:
-1. **Upstash Redis** (primary) — 30-day TTL, serverless-compatible
-2. **In-memory map** (fallback) — Used when Redis is unavailable
+1. **Redis** (primary) — standard Redis URL (Render Key Value / Redis), 30-day TTL
+2. **In-memory map** (fallback) — Used when Redis is unavailable / not configured
 3. **File system** (development only) — Written to `tmp/checkpoints/`
 
 #### Widget Rendering
@@ -579,7 +578,7 @@ Rather than a simple per-user model, Notedraw uses workspaces as the unit of org
 
 ### Why a separate collab server?
 
-Vercel serverless functions cannot maintain persistent WebSocket connections. A separate long-lived Node.js process (deployed on Fly.io, Railway, or a VPS) is required. The collab server is intentionally kept minimal — it only relays messages and does not write to the database.
+Vercel serverless functions cannot maintain persistent WebSocket connections. A separate long-lived Node.js process (currently deployed on Render) is required. The collab server is intentionally kept minimal — it only relays messages and does not write to the database.
 
 ### Why Socket.IO over raw WebSocket?
 

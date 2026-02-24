@@ -1,11 +1,3 @@
-declare module "@upstash/redis" {
-  export class Redis {
-    constructor(config: { url: string; token: string });
-    set(key: string, value: unknown, options?: { ex?: number }): Promise<void>;
-    get(key: string): Promise<unknown>;
-  }
-}
-
 declare module "@modelcontextprotocol/ext-apps" {
   export type App = any;
 }
@@ -75,8 +67,4 @@ declare module "cors" {
 declare module "express" {
   export type Request = any;
   export type Response = any;
-}
-
-declare module "mcp-handler" {
-  export const createMcpHandler: (...args: any[]) => any;
 }

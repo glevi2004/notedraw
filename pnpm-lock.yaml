@@ -91,18 +91,15 @@ importers:
       '@sentry/node':
         specifier: ^10.39.0
         version: 10.39.0
-      '@upstash/redis':
-        specifier: ^1.34.0
-        version: 1.36.2
       cors:
         specifier: ^2.8.5
         version: 2.8.6
       express:
         specifier: ^5.1.0
         version: 5.2.1
-      mcp-handler:
-        specifier: ^1.0.7
-        version: 1.0.7(@modelcontextprotocol/sdk@1.26.0(zod@4.3.6))(next@16.1.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0))
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.9.2
       morphdom:
         specifier: ^2.7.8
         version: 2.7.8

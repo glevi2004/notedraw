@@ -10,7 +10,7 @@ Works with any client that supports [MCP Apps](https://modelcontextprotocol.io/d
 
 ### Remote (recommended)
 
-### `https://excalidraw-mcp-app.vercel.app/mcp`
+### `https://mcp.notedraw.com/mcp`
 
 Add as a remote MCP server in your client. For example, in [claude.ai](https://claude.ai): **Settings** → **Connectors** → **Add custom connector** → paste the URL above.
 
@@ -70,12 +70,12 @@ PRs welcome! See [Local](#local) above for build instructions.
 
 ### Deploy your own instance
 
-You can deploy your own copy to Vercel in a few clicks:
+You can deploy your own copy as a long-lived HTTP service (for example on Render) using the Dockerfile in `apps/mcp/`:
 
 1. Fork this repo
-2. Go to [vercel.com/new](https://vercel.com/new) and import your fork
-3. No environment variables needed — just deploy
-4. Your server will be at `https://your-project.vercel.app/mcp`
+2. Create a web service from the repo using `apps/mcp/Dockerfile` (monorepo root build context)
+3. Set `MCP_CHECKPOINT_BACKEND=redis` and `MCP_REDIS_URL` (or use `file`/`memory` for local testing)
+4. Expose the service and route `/mcp` to your custom domain
 
 ### Release checklist
 
@@ -90,8 +90,7 @@ npm run build && mcpb pack .
 # 3. Create GitHub release
 gh release create v0.3.0 excalidraw-mcp-app.mcpb --title "v0.3.0" --notes "What changed"
 
-# 4. Deploy to Vercel
-vercel --prod
+# 4. Deploy to your MCP host (e.g. Render)
 ```
 
 </details>

@@ -25,10 +25,12 @@ RUN pnpm --filter @grovebox/collab build
 
 # ── runtime ────────────────────────────────────────────────────────────────
 FROM node:22-alpine
-WORKDIR /app
+WORKDIR /app/apps/collab
 
-COPY --from=builder /app/apps/collab/dist ./dist
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/apps/collab/package.json ./package.json
 COPY --from=builder /app/apps/collab/node_modules ./node_modules
+COPY --from=builder /app/apps/collab/dist ./dist
 
 EXPOSE 4001
 

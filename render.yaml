@@ -1,0 +1,91 @@
+services:
+  - type: keyvalue
+    name: notedraw-redis
+    plan: starter
+    region: virginia
+    maxmemoryPolicy: allkeys-lru
+
+  - type: web
+    name: notedraw-collab
+    env: docker
+    dockerfilePath: ./apps/collab/Dockerfile
+    dockerContext: .
+    plan: starter
+    region: virginia
+    healthCheckPath: /healthz
+    autoDeploy: true
+    domains:
+      - collab.notedraw.com
+    buildFilter:
+      paths:
+        - apps/collab/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - render.yaml
+        - tsconfig.base.json
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4001"
+      - key: COLLAB_ALLOWED_ORIGINS
+        value: https://notedraw.com,https://app.notedraw.com
+      - key: COLLAB_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: notedraw-redis
+          property: connectionString
+      - key: LOG_LEVEL
+        value: info
+      - key: COLLAB_MAX_PAYLOAD_BYTES
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+  - type: web
+    name: notedraw-mcp
+    env: docker
+    dockerfilePath: ./apps/mcp/Dockerfile
+    dockerContext: .
+    plan: starter
+    region: virginia
+    healthCheckPath: /healthz
+    autoDeploy: true
+    domains:
+      - mcp.notedraw.com
+    buildFilter:
+      paths:
+        - apps/mcp/**
+        - packages/ai-contracts/**
+        - packages/scene-ops/**
+        - packages/excalidraw/**
+        - packages/element/**
+        - packages/common/**
+        - packages/math/**
+        - packages/utils/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - render.yaml
+        - tsconfig.base.json
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: MCP_CHECKPOINT_BACKEND
+        value: redis
+      - key: MCP_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: notedraw-redis
+          property: connectionString
+      - key: MCP_CHECKPOINT_PREFIX
+        value: notedraw:mcp:cp
+      - key: SENTRY_DSN
+        sync: false
+      - key: NOTEDRAW_SHARE_EXPORT_URL
+        sync: false
+      - key: NOTEDRAW_SHARE_EXPORT_TOKEN
+        sync: false

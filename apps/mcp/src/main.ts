@@ -18,7 +18,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import cors from "cors";
 import type { Request, Response } from "express";
-import { FileCheckpointStore } from "./checkpoint-store.js";
+import { createCheckpointStore } from "./checkpoint-store.js";
 import { createServer } from "./server.js";
 
 /**
@@ -35,7 +35,13 @@ export async function startStreamableHTTPServer(
   app.use(cors());
 
   app.get("/healthz", (_req: Request, res: Response) => {
-    res.json({ ok: true, version: process.env.VERCEL_GIT_COMMIT_SHA ?? "dev" });
+    res.json({
+      ok: true,
+      version:
+        process.env.RENDER_GIT_COMMIT ??
+        process.env.GIT_COMMIT_SHA ??
+        "dev",
+    });
   });
 
   app.all("/mcp", async (req: Request, res: Response) => {
@@ -94,7 +100,7 @@ export async function startStdioServer(
 }
 
 async function main() {
-  const store = new FileCheckpointStore();
+  const store = createCheckpointStore();
   const factory = () => createServer(store);
   if (process.argv.includes("--stdio")) {
     await startStdioServer(factory);

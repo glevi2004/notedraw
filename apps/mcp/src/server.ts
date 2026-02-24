@@ -702,7 +702,7 @@ Use the Primary Colors from above — they're bright enough on dark backgrounds.
 
 /**
  * Registers all Excalidraw tools and resources on the given McpServer.
- * Shared between local (main.ts) and Vercel (api/mcp.ts) entry points.
+ * Shared between the HTTP and stdio runtime entry points.
  */
 export function registerTools(server: McpServer, distDir: string, store: CheckpointStore): void {
   const resourceUri = "ui://excalidraw/mcp-app.html";

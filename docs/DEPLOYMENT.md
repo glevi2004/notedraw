@@ -15,8 +15,8 @@ This document covers everything needed to deploy all three Notedraw applications
 5. [Authentication Setup (Clerk)](#5-authentication-setup-clerk)
 6. [File Storage Setup (Vercel Blob)](#6-file-storage-setup-vercel-blob)
 7. [Deploying `apps/web` (Vercel)](#7-deploying-appsweb-vercel)
-8. [Deploying `apps/collab` (Fly.io)](#8-deploying-appscollab-flyio)
-9. [Deploying `apps/mcp` (Vercel)](#9-deploying-appsmcp-vercel)
+8. [Deploying `apps/collab` (Render)](#8-deploying-appscollab-render)
+9. [Deploying `apps/mcp` (Render)](#9-deploying-appsmcp-render)
 10. [Post-Deployment Checklist](#10-post-deployment-checklist)
 11. [Local Development Setup](#11-local-development-setup)
 12. [Staging Environment](#12-staging-environment)
@@ -31,12 +31,12 @@ This document covers everything needed to deploy all three Notedraw applications
 | Service | Platform | Notes |
 |---------|----------|-------|
 | `apps/web` | Vercel | Next.js, serverless functions |
-| `apps/collab` | Fly.io (recommended) | Persistent Node.js WebSocket process |
-| `apps/mcp` | Vercel | Serverless Express handler |
+| `apps/collab` | Render | Persistent Node.js WebSocket process |
+| `apps/mcp` | Render | Long-lived HTTP MCP service |
 | Database | Neon (PostgreSQL) | Serverless PostgreSQL |
 | File storage | Vercel Blob | S3-compatible blob storage |
 | Auth | Clerk | Managed auth, webhooks |
-| Cache/pub-sub | Upstash Redis | Serverless Redis for collab + MCP checkpoints |
+| Cache/pub-sub | Render Key Value (Redis) | Redis pub/sub for collab + MCP checkpoints |
 | Error tracking | Sentry | Error monitoring (recommended) |
 | Email | Resend | Transactional email for invitations (recommended) |
 
@@ -45,8 +45,8 @@ This document covers everything needed to deploy all three Notedraw applications
 ```
 notedraw.com           → apps/web (Vercel) — marketing / landing page
 app.notedraw.com       → apps/web (Vercel) — authenticated app
-mcp.notedraw.com       → apps/mcp (Vercel) — MCP server
-collab.notedraw.com    → apps/collab (Fly.io) — WebSocket server
+mcp.notedraw.com       → apps/mcp (Render) — MCP server
+collab.notedraw.com    → apps/collab (Render) — WebSocket server
 ```
 
 Vercel handles both `notedraw.com` and `app.notedraw.com` — Next.js middleware can route traffic based on the host header.
@@ -56,11 +56,10 @@ Vercel handles both `notedraw.com` and `app.notedraw.com` — Next.js middleware
 ## 2. Prerequisites
 
 Before starting, you will need accounts at:
-- [Vercel](https://vercel.com) (web + mcp deployment)
+- [Vercel](https://vercel.com) (web deployment)
 - [Neon](https://neon.tech) (database)
 - [Clerk](https://clerk.com) (authentication)
-- [Fly.io](https://fly.io) (collab server) — or Railway/Render as alternatives
-- [Upstash](https://upstash.com) (Redis for collab + MCP checkpoints)
+- [Render](https://render.com) (collab + mcp deployment, Key Value / Redis)
 - [GitHub](https://github.com) (source code + CI/CD)
 
 Optional but recommended:
@@ -73,7 +72,6 @@ Optional but recommended:
 ```bash
 node --version      # 22.x or later
 pnpm --version      # 10.x (matches pnpm-workspace.yaml)
-flyctl version      # Fly.io CLI
 vercel --version    # Vercel CLI
 ```
 
@@ -81,8 +79,8 @@ Install CLIs:
 ```bash
 npm install -g pnpm@10
 npm install -g vercel
-brew install flyctl        # macOS
-# or: curl -L https://fly.io/install.sh | sh
+# Optional: install a Render CLI if you prefer CLI workflows
+# (the guide below uses the Render dashboard + render.yaml Blueprint)
 ```
 
 ---
@@ -148,7 +146,7 @@ CRON_SECRET="..."           # Random string; sent as Authorization header by Ver
 ```bash
 PORT=4001
 COLLAB_ALLOWED_ORIGINS="https://notedraw.com,https://app.notedraw.com"
-COLLAB_REDIS_URL="rediss://default:TOKEN@HOST:6380"   # Upstash Redis TLS URL
+COLLAB_REDIS_URL="redis://default:PASSWORD@HOST:6379"   # Render Redis / Key Value URL
 COLLAB_MAX_PAYLOAD_BYTES=5000000   # 5MB
 ```
 
@@ -156,8 +154,9 @@ COLLAB_MAX_PAYLOAD_BYTES=5000000   # 5MB
 
 ```bash
 NODE_ENV=production
-UPSTASH_REDIS_REST_URL="https://HOST.upstash.io"
-UPSTASH_REDIS_REST_TOKEN="..."
+MCP_CHECKPOINT_BACKEND="redis"
+MCP_REDIS_URL="redis://default:PASSWORD@HOST:6379"
+MCP_CHECKPOINT_PREFIX="notedraw:mcp:cp"
 NOTEDRAW_SHARE_EXPORT_URL="https://app.notedraw.com/api/share"  # Optional webhook
 NOTEDRAW_SHARE_EXPORT_TOKEN="..."                                 # Optional
 ```
@@ -379,232 +378,128 @@ Push to `main` branch → Vercel automatically rebuilds and deploys. Preview dep
 
 ---
 
-## 8. Deploying `apps/collab` (Fly.io)
+## 8. Deploying `apps/collab` (Render)
 
-The collab server requires a persistent WebSocket process. Fly.io is recommended for its excellent Node.js support, global regions, and affordable pricing. Railway is a good alternative.
+The collab server requires a persistent WebSocket process, so it runs as a Render Docker web service (not on Vercel).
 
-### 8.1 Create the Fly App
+### 8.1 Use the Render Blueprint (`render.yaml`)
 
-```bash
-cd apps/collab
+This repository includes a root Blueprint at `render.yaml` that provisions:
+- `notedraw-redis` (Render Key Value / Redis)
+- `notedraw-collab` (Docker web service)
+- `notedraw-mcp` (Docker web service)
 
-# Initialize a new Fly app (interactive)
-fly launch --no-deploy
+In the Render dashboard:
+1. Create a new **Blueprint** deployment
+2. Connect this GitHub repository
+3. Select the `main` branch
+4. Use `render.yaml` from the repository root
+5. Apply the Blueprint
 
-# Answer prompts:
-# App name: notedraw-collab
-# Region: same as your Vercel/Neon region (e.g., iad for us-east)
-# Do you want a Postgres database? No
-# Do you want a Redis database? No (we use Upstash)
-```
+### 8.2 Collab service configuration (from Blueprint)
 
-This creates `fly.toml` in `apps/collab/`.
+The collab service is configured to:
+- Build with Dockerfile: `apps/collab/Dockerfile`
+- Use monorepo root as the Docker build context
+- Expose health check path: `/healthz`
+- Attach custom domain: `collab.notedraw.com`
 
-### 8.2 Create the Dockerfile
+Required environment variables (managed in `render.yaml` / Render dashboard):
+- `NODE_ENV=production`
+- `COLLAB_ALLOWED_ORIGINS=https://notedraw.com,https://app.notedraw.com`
+- `COLLAB_REDIS_URL` (injected from Render Key Value / Redis)
 
-Create `apps/collab/Dockerfile`:
+Optional:
+- `COLLAB_MAX_PAYLOAD_BYTES`
+- `SENTRY_DSN`
+- `LOG_LEVEL`
 
-```dockerfile
-# ─── Build stage ───────────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
-WORKDIR /app
+### 8.3 Verify collab deployment
 
-# Install pnpm
-RUN npm install -g pnpm@10
-
-# Copy workspace files needed for installation
-COPY ../../pnpm-workspace.yaml ../../pnpm-lock.yaml ../../package.json ./
-COPY apps/collab/package.json ./apps/collab/package.json
-
-# Install only collab dependencies
-RUN pnpm install --frozen-lockfile --filter @notedraw/collab
-
-# Copy source and build
-COPY apps/collab ./apps/collab
-RUN pnpm --filter @notedraw/collab build
-
-# ─── Production stage ──────────────────────────────────────────────────────────
-FROM node:22-alpine
-WORKDIR /app
-
-COPY --from=builder /app/apps/collab/dist ./dist
-COPY --from=builder /app/apps/collab/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-
-EXPOSE 4001
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost:4001/healthz || exit 1
-CMD ["node", "dist/index.js"]
-```
-
-> **Note:** The Dockerfile above assumes a monorepo-aware build context. Adjust paths if building from a different context. Fly.io builds from the repository root by default.
-
-### 8.3 Configure `fly.toml`
-
-```toml
-app = "notedraw-collab"
-primary_region = "iad"  # us-east; match your Vercel region
-
-[build]
-  dockerfile = "apps/collab/Dockerfile"
-
-[http_service]
-  internal_port = 4001
-  force_https = true
-  auto_stop_machines = true
-  auto_start_machines = true
-  min_machines_running = 1   # Keep at least 1 alive for low-latency WebSocket
-
-  [http_service.concurrency]
-    type = "connections"
-    hard_limit = 500
-    soft_limit = 400
-
-[[vm]]
-  size = "shared-cpu-1x"     # 256MB; upgrade if handling 100+ concurrent users
-```
-
-### 8.4 Set Environment Variables on Fly
+After the service is live:
 
 ```bash
-fly secrets set \
-  COLLAB_ALLOWED_ORIGINS="https://notedraw.com,https://app.notedraw.com" \
-  COLLAB_REDIS_URL="rediss://default:TOKEN@HOST:6380" \
-  COLLAB_MAX_PAYLOAD_BYTES="5000000"
+# Health
+curl https://notedraw-collab.onrender.com/healthz
+
+# Metrics (optional)
+curl https://notedraw-collab.onrender.com/metrics
 ```
 
-Verify secrets are set:
-```bash
-fly secrets list
-```
+Expected:
+- `/healthz` → `{"ok":true}`
+- `/metrics` → Prometheus metrics including `collab_connections` / `collab_messages`
 
-### 8.5 Deploy
+### 8.4 Configure custom domain
 
-```bash
-fly deploy --config apps/collab/fly.toml
-```
+In Render dashboard → `notedraw-collab` service → **Settings** → **Custom Domains**:
+1. Add `collab.notedraw.com`
+2. Add the DNS records Render provides at your DNS provider
+3. Wait for TLS to be issued
 
-### 8.6 Verify Deployment
-
-```bash
-# Check the app is running
-fly status --app notedraw-collab
-
-# View logs
-fly logs --app notedraw-collab
-
-# Test health endpoint
-curl https://notedraw-collab.fly.dev/healthz
-# Expected: {"ok":true}
-
-# Test metrics endpoint
-curl https://notedraw-collab.fly.dev/metrics
-# Expected: collab_connections 0\ncollab_messages 0
-```
-
-### 8.7 Configure Custom Domain
+Once live, ensure the Vercel web app variable is:
 
 ```bash
-fly certs add collab.notedraw.com --app notedraw-collab
-```
-
-Follow the DNS instructions Fly provides. Add a CNAME record at your DNS provider pointing `collab.notedraw.com` to `notedraw-collab.fly.dev`.
-
-Once live, update the Vercel environment variable:
-```
 NEXT_PUBLIC_COLLAB_SERVER_URL=https://collab.notedraw.com
 ```
 
-### 8.8 Scaling
+### 8.5 Scaling
 
-For production with many concurrent users:
-
-```bash
-# Scale to 2 instances for redundancy
-fly scale count 2 --app notedraw-collab
-
-# Upgrade VM size for high concurrency
-fly scale vm performance-1x --app notedraw-collab
-```
-
-Redis adapter (Upstash) is required for multi-instance deployments to share room state.
-
-### 8.9 Alternative: Railway
-
-If Fly.io is not preferred:
-
-1. Create a new Railway project
-2. Connect your GitHub repository
-3. Set the start command: `cd apps/collab && node dist/index.js`
-4. Add the same environment variables via Railway's UI
-5. Enable a custom domain in Railway's settings
+For higher concurrency:
+- Increase instance size in Render
+- Increase instance count (horizontal scaling)
+- Keep `COLLAB_REDIS_URL` configured so the Redis adapter can share room state across instances
 
 ---
 
-## 9. Deploying `apps/mcp` (Vercel)
+## 9. Deploying `apps/mcp` (Render)
 
-The MCP server deploys as a Vercel serverless function. A `vercel.json` already exists in `apps/mcp/`.
+The MCP server runs as a long-lived HTTP service on Render (Docker), not as a Vercel serverless function.
 
-### 9.1 Connect the MCP App to Vercel
+### 9.1 MCP service configuration (from Blueprint)
 
-```bash
-cd apps/mcp
-vercel link
+The Blueprint configures `notedraw-mcp` to:
+- Build with Dockerfile: `apps/mcp/Dockerfile`
+- Use monorepo root as the Docker build context
+- Expose health check path: `/healthz`
+- Attach custom domain: `mcp.notedraw.com`
 
-# Or from root:
-vercel --cwd apps/mcp
-```
+Required environment variables:
+- `NODE_ENV=production`
+- `MCP_CHECKPOINT_BACKEND=redis`
+- `MCP_REDIS_URL` (injected from Render Key Value / Redis)
+- `MCP_CHECKPOINT_PREFIX=notedraw:mcp:cp`
 
-### 9.2 Configure Build Settings
+Optional:
+- `SENTRY_DSN`
+- `NOTEDRAW_SHARE_EXPORT_URL`
+- `NOTEDRAW_SHARE_EXPORT_TOKEN`
 
-`apps/mcp/vercel.json`:
-```json
-{
-  "buildCommand": "npm run build",
-  "outputDirectory": ".",
-  "rewrites": [
-    { "source": "/mcp", "destination": "/api/mcp" },
-    { "source": "/sse", "destination": "/api/mcp" },
-    { "source": "/message", "destination": "/api/mcp" }
-  ],
-  "headers": [
-    {
-      "source": "/mcp",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Accept, Authorization, Mcp-Session-Id" }
-      ]
-    }
-  ]
-}
-```
-
-### 9.3 Set Environment Variables
+### 9.2 Verify MCP deployment
 
 ```bash
-vercel env add UPSTASH_REDIS_REST_URL production
-vercel env add UPSTASH_REDIS_REST_TOKEN production
-vercel env add NODE_ENV production
-```
+# Health check
+curl https://notedraw-mcp.onrender.com/healthz
 
-### 9.4 Deploy
+# CORS / endpoint sanity (OPTIONS)
+curl -i -X OPTIONS https://notedraw-mcp.onrender.com/mcp
 
-```bash
-vercel --prod --cwd apps/mcp
-```
-
-### 9.5 Verify
-
-```bash
-# Test MCP endpoint
-curl -X POST https://mcp.notedraw.com/mcp \
+# Basic MCP JSON-RPC request
+curl -X POST https://notedraw-mcp.onrender.com/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-### 9.6 Configure Custom Domain
+### 9.3 Configure custom domain
 
-In Vercel dashboard → `notedraw-mcp` project → **Domains** → add `mcp.notedraw.com`.
+In Render dashboard → `notedraw-mcp` service → **Settings** → **Custom Domains**:
+1. Add `mcp.notedraw.com`
+2. Add the DNS records Render provides at your DNS provider
+3. Wait for TLS to be issued
+
+### 9.4 Notes on checkpoint storage
+
+MCP checkpoints now use standard Redis URLs (`MCP_REDIS_URL`) and are compatible with Render Key Value / Redis. Upstash/Vercel KV REST environment variables are no longer used.
 
 ---
 
@@ -750,8 +645,8 @@ Maintain a staging environment that mirrors production for safe testing of chang
 |---------|--------------|
 | Web app | Vercel preview deployments (automatic) |
 | Database | Separate Neon project or Neon branch |
-| Collab server | Fly.io staging app: `notedraw-collab-staging` |
-| MCP server | Vercel preview deployment |
+| Collab server | Render staging web service (optional) |
+| MCP server | Render staging web service (optional) |
 | Clerk | Separate Clerk application |
 | Blob storage | Separate Vercel Blob store |
 
@@ -763,15 +658,13 @@ In Vercel → project → **Environment Variables**:
 - Add variables with environment: `Preview`
 - Use staging-specific Clerk keys, database URL, etc.
 
-### 12.3 Staging Collab Server
+### 12.3 Staging Backends on Render
 
-```bash
-fly launch --no-deploy --name notedraw-collab-staging --copy-config
-fly secrets set \
-  COLLAB_ALLOWED_ORIGINS="https://notedraw-web-git-main-your-org.vercel.app" \
-  COLLAB_REDIS_URL="rediss://default:STAGING_TOKEN@HOST:6380"
-fly deploy --app notedraw-collab-staging
-```
+Recommended approach:
+1. Create a staging Blueprint or duplicate the production Render services
+2. Use staging domains (for example `collab-staging.notedraw.com`, `mcp-staging.notedraw.com`)
+3. Point `COLLAB_ALLOWED_ORIGINS` at the Vercel preview domain(s)
+4. Use a separate Render Key Value / Redis instance for staging
 
 ---
 
@@ -829,19 +722,21 @@ jobs:
         run: pnpm format:check
 ```
 
-### 13.2 GitHub Actions — Deploy Collab on Merge
+### 13.2 GitHub Actions — Deploy Render Backends on Merge
 
-Create `.github/workflows/deploy-collab.yml`:
+Create `.github/workflows/deploy-backends.yml`:
 
 ```yaml
-name: Deploy Collab Server
+name: Deploy Render Backends
 
 on:
   push:
     branches: [main]
     paths:
       - 'apps/collab/**'
-      - '.github/workflows/deploy-collab.yml'
+      - 'apps/mcp/**'
+      - 'render.yaml'
+      - '.github/workflows/deploy-backends.yml'
 
 jobs:
   deploy:
@@ -849,12 +744,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy to Fly.io
-        run: fly deploy --config apps/collab/fly.toml --remote-only
+      - name: Trigger Render Blueprint deploy
+        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
 ```
 
 ### 13.3 GitHub Actions — Database Migrations on Deploy
@@ -898,7 +791,7 @@ Add these in GitHub → repository → **Settings** → **Secrets and variables*
 
 | Secret | Description |
 |--------|-------------|
-| `FLY_API_TOKEN` | Fly.io deploy token (`fly tokens create deploy`) |
+| `RENDER_DEPLOY_HOOK_URL` | Render deploy hook URL for backend Blueprint/service |
 | `TURBO_TOKEN` | Turborepo remote cache token |
 | `TURBO_TEAM` | Turborepo team slug |
 | `DATABASE_URL_UNPOOLED` | Direct DB URL for migrations |
@@ -916,15 +809,13 @@ Or via CLI:
 vercel rollback [DEPLOYMENT_URL]
 ```
 
-### 14.2 Rolling Back `apps/collab`
+### 14.2 Rolling Back `apps/collab` and `apps/mcp`
 
-```bash
-# List recent releases
-fly releases --app notedraw-collab
-
-# Rollback to a specific version
-fly deploy --image registry.fly.io/notedraw-collab:v5 --app notedraw-collab
-```
+Use Render dashboard:
+1. Open the service (`notedraw-collab` or `notedraw-mcp`)
+2. Go to **Events / Deploys**
+3. Select the previous successful deploy
+4. Redeploy that commit/image
 
 ### 14.3 Rolling Back Database Migrations
 
@@ -944,7 +835,7 @@ If a deploy breaks production:
 
 ```
 1. Vercel: rollback web app immediately (< 2 minutes)
-2. Fly.io: rollback collab server if it was deployed
+2. Render: rollback `notedraw-collab` / `notedraw-mcp` if they were deployed
 3. Database: if migration was run, assess whether rollback is safe
    - If additive: no action needed, old app works with new schema
    - If destructive: run rollback migration ASAP
@@ -991,7 +882,7 @@ collab_connections <count>
 collab_messages <count>
 ```
 
-If you use Fly.io, you can scrape these with Fly's built-in metrics or forward them to Grafana Cloud.
+On Render, you can scrape these via your own Prometheus/Grafana stack or use an external metrics collector.
 
 Set an alert if `collab_connections` drops to 0 during peak hours (indicates a server crash).
 
@@ -1016,23 +907,20 @@ Enable Vercel Analytics and Speed Insights in the Vercel dashboard:
 # Web app
 vercel --prod --cwd apps/web
 
-# Collab server
-fly deploy --config apps/collab/fly.toml
-
-# MCP server
-vercel --prod --cwd apps/mcp
+# Backend services (Render)
+# Apply / update render.yaml in Render, or trigger your Render deploy hook
 
 # Run DB migrations
 cd apps/web && DATABASE_URL="$DATABASE_URL_UNPOOLED" pnpm exec prisma migrate deploy
 
-# View collab logs
-fly logs --app notedraw-collab
+# View backend logs
+# Use the Render dashboard logs for `notedraw-collab` / `notedraw-mcp`
 
 # Rollback web
 vercel rollback
 
-# Rollback collab
-fly deploy --image registry.fly.io/notedraw-collab:v<N> --app notedraw-collab
+# Rollback collab / mcp
+# Use Render dashboard → previous deploy → Redeploy
 ```
 
 ## Appendix B: Environment Variable Checklist
@@ -1051,12 +939,13 @@ Copy this checklist when setting up a new environment:
 - [ ] `SENTRY_DSN` (if using Sentry)
 - [ ] `CRON_SECRET`
 
-**apps/collab (Fly.io)**
+**apps/collab (Render)**
 - [ ] `COLLAB_ALLOWED_ORIGINS`
 - [ ] `COLLAB_REDIS_URL`
 - [ ] `COLLAB_MAX_PAYLOAD_BYTES`
 
-**apps/mcp (Vercel)**
-- [ ] `UPSTASH_REDIS_REST_URL`
-- [ ] `UPSTASH_REDIS_REST_TOKEN`
+**apps/mcp (Render)**
+- [ ] `MCP_CHECKPOINT_BACKEND` (`redis`)
+- [ ] `MCP_REDIS_URL`
+- [ ] `MCP_CHECKPOINT_PREFIX`
 - [ ] `NODE_ENV`
