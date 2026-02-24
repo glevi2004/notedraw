@@ -1,5 +1,4 @@
 import { ScenePatchSchema } from "@grovebox/ai-contracts";
-import type { ZodIssue } from "zod";
 import type { ScenePatchOp, ValidationResult } from "./types";
 
 const validateOpSemantics = (op: ScenePatchOp): string | null => {
@@ -30,7 +29,7 @@ export const validateScenePatch = (patch: unknown): ValidationResult => {
   if (!parsed.success) {
     return {
       ok: false,
-      errors: parsed.error.issues.map((issue: ZodIssue) => {
+      errors: parsed.error.issues.map((issue) => {
         const path = issue.path.length ? issue.path.join(".") : "root";
         return `${path}: ${issue.message}`;
       }),
