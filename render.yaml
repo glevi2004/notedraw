@@ -1,7 +1,7 @@
 services:
   - type: keyvalue
     name: notedraw-redis
-    plan: starter
+    plan: free
     region: virginia
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
@@ -11,7 +11,7 @@ services:
     env: docker
     dockerfilePath: ./apps/collab/Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
     region: virginia
     healthCheckPath: /healthz
     autoDeploy: true
@@ -49,7 +49,7 @@ services:
     env: docker
     dockerfilePath: ./apps/mcp/Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
     region: virginia
     healthCheckPath: /healthz
     autoDeploy: true
