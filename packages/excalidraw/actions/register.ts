@@ -6,7 +6,7 @@ export const register = <
   TData extends any,
   T extends Action<TData> = Action<TData>,
 >(
-  action: T,
+  action: Action<TData> & T,
 ) => {
   actions = actions.concat(action);
   return action as T & {
