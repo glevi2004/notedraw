@@ -4,6 +4,7 @@ services:
     plan: starter
     region: virginia
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
 
   - type: web
     name: notedraw-collab
